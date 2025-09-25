@@ -1,0 +1,608 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management Models
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  phone            String?   @unique
+  password         String
+  firstName        String
+  lastName         String
+  role             UserRole  @default(MERCHANT_STAFF)
+  isActive         Boolean   @default(true)
+  emailVerified    DateTime?
+  phoneVerified    DateTime?
+  twoFactorEnabled Boolean   @default(false)
+  lastLogin        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  merchantId          String?
+  merchant            Merchant?            @relation(fields: [merchantId], references: [id])
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  sessions            UserSession[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  SJFS_ADMIN
+  MERCHANT_ADMIN
+  MERCHANT_STAFF
+  WAREHOUSE_STAFF
+}
+
+// Subscription & Billing Models
+model ServicePlan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  basePrice   Decimal  @db.Decimal(10, 2)
+  features    Json // Store plan features as JSON
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("service_plans")
+}
+
+model AddonService {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  pricingType PricingType @default(MONTHLY)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  subscriptionAddons SubscriptionAddon[]
+
+  @@map("addon_services")
+}
+
+enum PricingType {
+  ONE_TIME
+  MONTHLY
+  YEARLY
+  PER_TRANSACTION
+  PER_ITEM
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  merchantId      String
+  servicePlanId   String
+  status          SubscriptionStatus @default(ACTIVE)
+  startDate       DateTime
+  endDate         DateTime?
+  nextBillingDate DateTime
+  totalAmount     Decimal            @db.Decimal(10, 2)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  merchant       Merchant            @relation(fields: [merchantId], references: [id])
+  servicePlan    ServicePlan         @relation(fields: [servicePlanId], references: [id])
+  addons         SubscriptionAddon[]
+  billingRecords BillingRecord[]
+
+  @@map("subscriptions")
+}
+
+model SubscriptionAddon {
+  id             String    @id @default(cuid())
+  subscriptionId String
+  addonServiceId String
+  quantity       Int       @default(1)
+  price          Decimal   @db.Decimal(10, 2)
+  startDate      DateTime
+  endDate        DateTime?
+  createdAt      DateTime  @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  addonService AddonService @relation(fields: [addonServiceId], references: [id])
+
+  @@map("subscription_addons")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+// Merchant Models
+model Merchant {
+  id               String           @id @default(cuid())
+  businessName     String
+  businessEmail    String           @unique
+  businessPhone    String
+  contactPerson    String
+  address          String
+  city             String
+  state            String
+  country          String           @default("Nigeria")
+  cacNumber        String? // Business registration number
+  taxId            String?
+  isActive         Boolean          @default(true)
+  onboardingStatus OnboardingStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  users          User[]
+  subscriptions  Subscription[]
+  products       Product[]
+  orders         Order[]
+  warehouses     WarehouseLocation[]
+  billingRecords BillingRecord[]
+
+  @@map("merchants")
+}
+
+enum OnboardingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// Inventory Models
+model Product {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  description  String?
+  category     String?
+  brand        String?
+  weight       Decimal? @db.Decimal(8, 2)
+  dimensions   Json? // {length, width, height}
+  unitPrice    Decimal? @db.Decimal(10, 2)
+  isActive     Boolean  @default(true)
+  hasExpiry    Boolean  @default(false)
+  isPerishable Boolean  @default(false)
+  barcodeData  String?
+  images       String[] // Array of image URLs
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+
+  stockItems    StockItem[]
+  orderItems    OrderItem[]
+  serialNumbers SerialNumber[]
+
+  @@map("products")
+}
+
+model StockItem {
+  id                String    @id @default(cuid())
+  productId         String
+  warehouseId       String
+  quantity          Int
+  reservedQuantity  Int       @default(0) // For pending orders
+  availableQuantity Int       @default(0) // Calculated field
+  reorderLevel      Int       @default(10)
+  maxStockLevel     Int?
+  batchNumber       String?
+  expiryDate        DateTime?
+  location          String? // Shelf/bin location
+  costPrice         Decimal?  @db.Decimal(10, 2)
+  lastStockIn       DateTime?
+  lastStockOut      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  product   Product           @relation(fields: [productId], references: [id])
+  warehouse WarehouseLocation @relation(fields: [warehouseId], references: [id])
+
+  stockMovements StockMovement[]
+
+  @@unique([productId, warehouseId, batchNumber])
+  @@map("stock_items")
+}
+
+model StockMovement {
+  id            String       @id @default(cuid())
+  stockItemId   String
+  movementType  MovementType
+  quantity      Int
+  referenceType String? // ORDER, ADJUSTMENT, TRANSFER, etc.
+  referenceId   String? // Reference to order, transfer, etc.
+  reason        String?
+  performedBy   String? // User ID
+  notes         String?
+  createdAt     DateTime     @default(now())
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+
+  @@map("stock_movements")
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  TRANSFER
+  DAMAGE
+  EXPIRED
+}
+
+// Warehouse Models
+model WarehouseLocation {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  address   String
+  city      String
+  state     String
+  country   String   @default("Nigeria")
+  isActive  Boolean  @default(true)
+  capacity  Int?
+  managerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  merchants  Merchant[]
+  stockItems StockItem[]
+  orders     Order[]
+  zones      WarehouseZone[]
+
+  @@map("warehouse_locations")
+}
+
+// Order Models
+model Order {
+  id               String        @id @default(cuid())
+  orderNumber      String        @unique
+  merchantId       String
+  warehouseId      String?
+  customerName     String
+  customerEmail    String?
+  customerPhone    String
+  shippingAddress  Json // Full address object
+  orderValue       Decimal       @db.Decimal(10, 2)
+  deliveryFee      Decimal       @default(0) @db.Decimal(10, 2)
+  totalAmount      Decimal       @db.Decimal(10, 2)
+  paymentMethod    PaymentMethod @default(COD)
+  status           OrderStatus   @default(PENDING)
+  notes            String?
+  trackingNumber   String?
+  expectedDelivery DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  merchant  Merchant           @relation(fields: [merchantId], references: [id])
+  warehouse WarehouseLocation? @relation(fields: [warehouseId], references: [id])
+
+  orderItems    OrderItem[]
+  statusHistory OrderStatusHistory[]
+  returns       Return[]
+  orderSplits   OrderSplit[]
+
+  @@map("orders")
+}
+
+enum PaymentMethod {
+  COD // Cash on Delivery
+  PREPAID
+  WALLET
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  PICKED
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Decimal @db.Decimal(10, 2)
+  totalPrice Decimal @db.Decimal(10, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  notes     String?
+  updatedBy String? // User ID
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_status_history")
+}
+
+// Returns Model
+model Return {
+  id           String       @id @default(cuid())
+  orderId      String
+  reason       ReturnReason
+  description  String?
+  status       ReturnStatus @default(INITIATED)
+  refundAmount Decimal?     @db.Decimal(10, 2)
+  restockable  Boolean      @default(false)
+  processedBy  String? // User ID
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("returns")
+}
+
+enum ReturnReason {
+  DAMAGED
+  WRONG_ITEM
+  CUSTOMER_REJECTED
+  NO_MONEY
+  QUALITY_ISSUE
+  OTHER
+}
+
+enum ReturnStatus {
+  INITIATED
+  APPROVED
+  REJECTED
+  REFUNDED
+  RESTOCKED
+}
+
+// Partner Logistics Model
+model LogisticsPartner {
+  id            String        @id @default(cuid())
+  companyName   String
+  contactPerson String
+  email         String        @unique
+  phone         String
+  address       String
+  city          String
+  state         String
+  cacNumber     String
+  coverageAreas String[] // States/cities they cover
+  guarantors    Json // Guarantor information
+  status        PartnerStatus @default(PENDING)
+  documents     Json? // Store document URLs
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  deliveryMetrics DeliveryMetrics[]
+
+  @@map("logistics_partners")
+}
+
+enum PartnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// Billing Models
+model BillingRecord {
+  id              String        @id @default(cuid())
+  merchantId      String
+  subscriptionId  String?
+  billingType     BillingType
+  description     String
+  amount          Decimal       @db.Decimal(10, 2)
+  dueDate         DateTime
+  paidDate        DateTime?
+  status          BillingStatus @default(PENDING)
+  referenceNumber String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  merchant     Merchant      @relation(fields: [merchantId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@map("billing_records")
+}
+
+enum BillingType {
+  SUBSCRIPTION
+  SETUP_FEE
+  DELIVERY_FEE
+  STORAGE_FEE
+  TRANSACTION_FEE
+  COD_FEE
+  ADDON_SERVICE
+}
+
+enum BillingStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+// Notification Model
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  data      Json? // Additional data for the notification
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  LOW_STOCK
+  ORDER_STATUS
+  PAYMENT_DUE
+  SYSTEM_ALERT
+  PERFORMANCE_SUMMARY
+}
+
+// Session Management Models
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_sessions")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("password_reset_tokens")
+}
+
+// Delivery Performance Tracking
+model DeliveryMetrics {
+  id                 String    @id @default(cuid())
+  logisticsPartnerId String
+  orderId            String
+  pickupTime         DateTime?
+  deliveryTime       DateTime?
+  deliveryAttempts   Int       @default(1)
+  deliveryStatus     String
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  logisticsPartner LogisticsPartner @relation(fields: [logisticsPartnerId], references: [id])
+
+  @@map("delivery_metrics")
+}
+
+// Warehouse Zones/Sections
+model WarehouseZone {
+  id          String   @id @default(cuid())
+  warehouseId String
+  name        String
+  code        String
+  description String?
+  capacity    Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse WarehouseLocation @relation(fields: [warehouseId], references: [id])
+
+  @@unique([warehouseId, code])
+  @@map("warehouse_zones")
+}
+
+// Serial Number Tracking for High-Value Items
+model SerialNumber {
+  id        String       @id @default(cuid())
+  productId String
+  serialNo  String       @unique
+  status    SerialStatus @default(AVAILABLE)
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("serial_numbers")
+}
+
+enum SerialStatus {
+  AVAILABLE
+  SOLD
+  DAMAGED
+  RETURNED
+  LOST
+}
+
+// Order Splitting for Multi-Warehouse Fulfillment
+model OrderSplit {
+  id              String      @id @default(cuid())
+  originalOrderId String
+  warehouseId     String
+  status          SplitStatus @default(PENDING)
+  trackingNumber  String?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  originalOrder Order @relation(fields: [originalOrderId], references: [id])
+
+  @@map("order_splits")
+}
+
+enum SplitStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// Audit Log Model
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String // TABLE_NAME
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
