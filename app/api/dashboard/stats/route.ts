@@ -1,19 +1,15 @@
-import {
-  createErrorResponse,
-  createResponse,
-  withRole,
-} from "@/app/lib/api-utils";
-import { JWTPayload } from "@/app/lib/auth";
-import { prisma } from "@/app/lib/prisma";
-import { NextRequest } from "next/server";
+import { NextRequest } from 'next/server'
+import { JWTPayload } from '@/app/lib/auth'
+import { createErrorResponse, createResponse, withRole } from '@/app/lib/api-utils'
+import { prisma } from '@/app/lib/prisma'
 
 // GET /api/dashboard/stats
 export const GET = withRole(
-  ["SJFS_ADMIN", "MERCHANT_ADMIN"],
+  ["SJFS_ADMIN", "MERCHANT_ADMIN", "MERCHANT_STAFF", "WAREHOUSE_STAFF"],
   async (request: NextRequest, user: JWTPayload) => {
     try {
-      const whereClause =
-        user.role === "SJFS_ADMIN" ? {} : { merchantId: user.merchantId };
+      // Build where clause based on user role
+      const whereClause = user.role === "SJFS_ADMIN" ? {} : { merchantId: user.merchantId };
 
       const [
         totalMerchants,
@@ -26,7 +22,9 @@ export const GET = withRole(
         recentOrders,
       ] = await Promise.all([
         // Total merchants (admin only)
-        user.role === "SJFS_ADMIN" ? prisma.merchant.count() : 0,
+        user.role === "SJFS_ADMIN" 
+          ? prisma.merchant.count() 
+          : Promise.resolve(0),
 
         // Total products
         prisma.product.count({ where: whereClause }),

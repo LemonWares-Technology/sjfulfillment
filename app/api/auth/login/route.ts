@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
-import { hashPassword, verifyPassword } from "../../../lib/password";
+import { verifyPassword } from "../../../lib/password";
 import { generateToken } from "../../../lib/auth";
 import { createResponse, createErrorResponse } from "../../../lib/api-utils";
-import { loginSchema, createUserSchema } from "../../../lib/validations";
+import { loginSchema } from "../../../lib/validations";
 
 // POST /api/auth/login
 export async function POST(request: NextRequest) {

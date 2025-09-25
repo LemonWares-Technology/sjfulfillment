@@ -248,3 +248,24 @@ export const updateReturnSchema = z.object({
   refundAmount: z.number().positive().optional(),
   restockable: z.boolean().optional(),
 });
+
+// Warehouse Zone Schemas
+export const createWarehouseZoneSchema = z.object({
+  name: z.string().min(1, "Zone name is required").max(100),
+  code: z.string().min(1, "Zone code is required").max(20),
+  description: z.string().optional(),
+  capacity: z.number().positive("Capacity must be positive"),
+  zoneType: z.enum(["STORAGE", "PICKING", "RECEIVING", "SHIPPING", "COLD_STORAGE", "HAZMAT"]),
+  temperatureRange: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const updateWarehouseZoneSchema = z.object({
+  name: z.string().min(1, "Zone name is required").max(100).optional(),
+  code: z.string().min(1, "Zone code is required").max(20).optional(),
+  description: z.string().optional(),
+  capacity: z.number().positive("Capacity must be positive").optional(),
+  zoneType: z.enum(["STORAGE", "PICKING", "RECEIVING", "SHIPPING", "COLD_STORAGE", "HAZMAT"]).optional(),
+  temperatureRange: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
