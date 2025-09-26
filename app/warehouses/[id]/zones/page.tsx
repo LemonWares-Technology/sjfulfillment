@@ -19,6 +19,7 @@ import {
 import SearchBar from '@/app/components/search-bar'
 import FilterSelect from '@/app/components/filter-select'
 import WarehouseZoneModal from '@/app/components/warehouse-zone-modal'
+import ServiceGate from '@/app/components/service-gate'
 
 interface Zone {
   id: string
@@ -194,13 +195,15 @@ export default function WarehouseZonesPage() {
               </div>
             </div>
             {user?.role === 'SJFS_ADMIN' && (
-              <button
-                onClick={handleAddZone}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add Zone
-              </button>
+              <ServiceGate serviceName="Warehouse Management">
+                <button
+                  onClick={handleAddZone}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <PlusIcon className="h-5 w-5 mr-2" />
+                  Add Zone
+                </button>
+              </ServiceGate>
             )}
           </div>
         </div>

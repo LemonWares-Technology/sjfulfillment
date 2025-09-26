@@ -18,24 +18,44 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
   const router = useRouter()
 
   useEffect(() => {
+    // Only redirect if user is trying to access a page they don't have permission for
     if (user && user.role !== userRole) {
-      // Redirect to appropriate dashboard based on role
-      switch (user.role) {
-        case 'SJFS_ADMIN':
-          router.push('/admin/dashboard')
-          break
-        case 'MERCHANT_ADMIN':
-          router.push('/merchant/dashboard')
-          break
-        case 'MERCHANT_STAFF':
-          router.push('/staff/dashboard')
-          break
-        case 'WAREHOUSE_STAFF':
-          router.push('/warehouse/dashboard')
-          break
+      // Check if the current page is accessible by the user's role
+      const currentPath = window.location.pathname
+      const isAccessible = checkPageAccess(user.role, currentPath)
+      
+      if (!isAccessible) {
+        // Redirect to appropriate dashboard based on role
+        switch (user.role) {
+          case 'SJFS_ADMIN':
+            router.push('/admin/dashboard')
+            break
+          case 'MERCHANT_ADMIN':
+            router.push('/merchant/dashboard')
+            break
+          case 'MERCHANT_STAFF':
+            router.push('/staff/dashboard')
+            break
+          case 'WAREHOUSE_STAFF':
+            router.push('/warehouse/dashboard')
+            break
+        }
       }
     }
   }, [user, userRole, router])
+
+  const checkPageAccess = (userRole: string, path: string): boolean => {
+    // Define which pages each role can access
+    const rolePermissions: Record<string, string[]> = {
+      'SJFS_ADMIN': ['/admin', '/analytics', '/performance', '/logistics', '/warehouses', '/products', '/orders', '/returns', '/notifications'],
+      'MERCHANT_ADMIN': ['/merchant', '/analytics', '/products', '/orders', '/returns', '/notifications'],
+      'MERCHANT_STAFF': ['/products', '/orders', '/returns', '/notifications'],
+      'WAREHOUSE_STAFF': ['/warehouses', '/logistics', '/orders', '/notifications']
+    }
+    
+    const allowedPaths = rolePermissions[userRole] || []
+    return allowedPaths.some(allowedPath => path.startsWith(allowedPath))
+  }
 
   if (!user) {
     return (

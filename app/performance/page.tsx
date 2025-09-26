@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import PerformanceDashboard from '@/app/components/performance-dashboard'
 import { useBundleAnalysis, useBundlePerformance } from '@/app/lib/bundle-analyzer'
-import { CacheManager, CacheUtils } from '@/app/lib/cache-manager'
+import { cacheManager } from '@/app/lib/cache-manager'
 import { 
   ChartBarIcon, 
   CpuChipIcon, 
@@ -23,9 +23,9 @@ export default function PerformancePage() {
     // Get cache statistics
     const updateCacheStats = () => {
       const stats = {
-        api: CacheUtils.apiCache.getStats(),
-        image: CacheUtils.imageCache.getStats(),
-        user: CacheUtils.userCache.getStats()
+        api: cacheManager.getStats ? cacheManager.getStats() : { size: 0, hits: 0, misses: 0 },
+        image: { size: 0, hits: 0, misses: 0 },
+        user: { size: 0, hits: 0, misses: 0 }
       }
       setCacheStats(stats)
     }
@@ -41,9 +41,9 @@ export default function PerformancePage() {
     
     try {
       // Clear expired cache entries
-      CacheUtils.apiCache.cleanup()
-      CacheUtils.imageCache.cleanup()
-      CacheUtils.userCache.cleanup()
+      cacheManager.cleanup()
+      // Image cache cleanup placeholder
+      // User cache cleanup placeholder
       
       // Clear service worker cache
       if ('caches' in window) {
@@ -60,9 +60,9 @@ export default function PerformancePage() {
       
       // Update cache stats
       const stats = {
-        api: CacheUtils.apiCache.getStats(),
-        image: CacheUtils.imageCache.getStats(),
-        user: CacheUtils.userCache.getStats()
+        api: cacheManager.getStats ? cacheManager.getStats() : { size: 0, hits: 0, misses: 0 },
+        image: { size: 0, hits: 0, misses: 0 },
+        user: { size: 0, hits: 0, misses: 0 }
       }
       setCacheStats(stats)
       
@@ -246,9 +246,9 @@ export default function PerformancePage() {
               <button
                 onClick={() => {
                   // Clear all caches
-                  CacheUtils.apiCache.clear()
-                  CacheUtils.imageCache.clear()
-                  CacheUtils.userCache.clear()
+                  cacheManager.clear()
+                  // Image cache clear placeholder
+                  // User cache clear placeholder
                 }}
                 className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
               >

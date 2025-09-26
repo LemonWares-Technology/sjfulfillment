@@ -11,6 +11,7 @@ import FilterSelect from "@/app/components/filter-select";
 import ProductModal from "@/app/components/product-modal";
 import BulkOperationsModal from "@/app/components/bulk-operations-modal";
 import ExportModal from "@/app/components/export-modal";
+import ServiceGate from "@/app/components/service-gate";
 
 interface Product {
   id: string;
@@ -162,13 +163,15 @@ export default function ProductsPage() {
                 <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
                 Export
               </button>
-              <button
-                onClick={handleAddProduct}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add Product
-              </button>
+              <ServiceGate serviceName="Inventory Management">
+                <button
+                  onClick={handleAddProduct}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <PlusIcon className="h-5 w-5 mr-2" />
+                  Add Product
+                </button>
+              </ServiceGate>
             </div>
           </div>
         </div>

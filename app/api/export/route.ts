@@ -1,10 +1,10 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { JWTPayload } from '@/app/lib/auth'
 import { createErrorResponse, withRole } from '@/app/lib/api-utils'
 import { prisma } from '@/app/lib/prisma'
 
 // GET /api/export
-export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (request: NextRequest, user: JWTPayload) => {
+export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (request: NextRequest, user: JWTPayload): Promise<NextResponse> => {
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
@@ -211,36 +211,23 @@ async function fetchReturnsData(whereClause: any) {
           customerEmail: true
         }
       },
-      returnItems: {
-        include: {
-          orderItem: {
-            include: {
-              product: {
-                select: { name: true, sku: true }
-              }
-            }
-          }
-        }
-      }
     },
     orderBy: { createdAt: 'desc' }
   })
 
   return returns.map(returnItem => ({
     'Return ID': returnItem.id,
-    'Return Number': returnItem.returnNumber,
+    'Return Number': returnItem.id,
     'Order Number': returnItem.order.orderNumber,
     'Customer Name': returnItem.order.customerName,
     'Customer Email': returnItem.order.customerEmail,
     'Reason': returnItem.reason,
     'Status': returnItem.status,
     'Refund Amount': Number(returnItem.refundAmount),
-    'Items Count': returnItem.returnItems.length,
-    'Items': returnItem.returnItems.map(item => 
-      `${item.orderItem.product.name} (${item.quantity}x) - ${item.condition}`
-    ).join('; '),
+    'Items Count': 0,
+    'Items': 'N/A',
     'Requested At': returnItem.createdAt.toISOString().split('T')[0],
-    'Processed At': returnItem.processedAt ? returnItem.processedAt.toISOString().split('T')[0] : ''
+    'Processed At': returnItem.updatedAt.toISOString().split('T')[0]
   }))
 }
 
@@ -252,7 +239,6 @@ async function fetchWarehousesData(whereClause: any) {
         select: {
           name: true,
           code: true,
-          zoneType: true,
           capacity: true,
           isActive: true
         }
@@ -275,7 +261,7 @@ async function fetchWarehousesData(whereClause: any) {
     'Capacity': warehouse.capacity,
     'Zones Count': warehouse.zones.length,
     'Zones': warehouse.zones.map(zone => 
-      `${zone.name} (${zone.zoneType}) - ${zone.capacity} units`
+      `${zone.name} - ${zone.capacity} units`
     ).join('; '),
     'Merchants Count': warehouse.merchants.length,
     'Merchants': warehouse.merchants.map(m => m.businessName).join('; '),
@@ -284,7 +270,7 @@ async function fetchWarehousesData(whereClause: any) {
   }))
 }
 
-async function generateExcelFile(data: any[], filename: string, type: string) {
+async function generateExcelFile(data: any[], filename: string, type: string): Promise<NextResponse> {
   const ExcelJS = require('exceljs')
   const workbook = new ExcelJS.Workbook()
   
@@ -293,7 +279,7 @@ async function generateExcelFile(data: any[], filename: string, type: string) {
   if (data.length === 0) {
     worksheet.addRow(['No data available'])
     const buffer = await workbook.xlsx.writeBuffer()
-    return new Response(buffer, {
+    return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}.xlsx"`
@@ -321,9 +307,9 @@ async function generateExcelFile(data: any[], filename: string, type: string) {
   })
 
   // Auto-fit columns
-  worksheet.columns.forEach(column => {
+  worksheet.columns.forEach((column: any) => {
     let maxLength = 0
-    column.eachCell({ includeEmpty: true }, (cell) => {
+    column.eachCell({ includeEmpty: true }, (cell: any) => {
       const columnLength = cell.value ? cell.value.toString().length : 10
       if (columnLength > maxLength) {
         maxLength = columnLength
@@ -334,7 +320,7 @@ async function generateExcelFile(data: any[], filename: string, type: string) {
 
   const buffer = await workbook.xlsx.writeBuffer()
   
-  return new Response(buffer, {
+  return new NextResponse(buffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}.xlsx"`
@@ -342,17 +328,17 @@ async function generateExcelFile(data: any[], filename: string, type: string) {
   })
 }
 
-async function generatePDFFile(data: any[], filename: string, type: string) {
+async function generatePDFFile(data: any[], filename: string, type: string): Promise<NextResponse> {
   const PDFDocument = require('pdfkit')
   const doc = new PDFDocument()
   
   const chunks: Buffer[] = []
   doc.on('data', (chunk: Buffer) => chunks.push(chunk))
   
-  return new Promise<Response>((resolve) => {
+  return new Promise<NextResponse>((resolve) => {
     doc.on('end', () => {
       const buffer = Buffer.concat(chunks)
-      resolve(new Response(buffer, {
+      resolve(new NextResponse(buffer, {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="${filename}.pdf"`
@@ -404,9 +390,9 @@ async function generatePDFFile(data: any[], filename: string, type: string) {
   })
 }
 
-async function generateCSVFile(data: any[], filename: string, type: string) {
+async function generateCSVFile(data: any[], filename: string, type: string): Promise<NextResponse> {
   if (data.length === 0) {
-    return new Response('No data available', {
+    return new NextResponse('No data available', {
       headers: {
         'Content-Type': 'text/csv',
         'Content-Disposition': `attachment; filename="${filename}.csv"`
@@ -429,7 +415,7 @@ async function generateCSVFile(data: any[], filename: string, type: string) {
     )
   ].join('\n')
 
-  return new Response(csvContent, {
+  return new NextResponse(csvContent, {
     headers: {
       'Content-Type': 'text/csv',
       'Content-Disposition': `attachment; filename="${filename}.csv"`

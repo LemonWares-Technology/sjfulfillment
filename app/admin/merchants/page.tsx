@@ -14,10 +14,16 @@ interface Merchant {
   businessName: string
   businessEmail: string
   businessPhone: string
+  businessAddress: string
   address: string
   city: string
   state: string
+  country: string
+  cacNumber: string
+  businessType: string
   onboardingStatus: string
+  subscriptionStatus: string
+  isActive: boolean
   createdAt: string
   users: {
     id: string

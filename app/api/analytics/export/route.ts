@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { JWTPayload } from '@/app/lib/auth'
 import { createErrorResponse, withRole } from '@/app/lib/api-utils'
 import { prisma } from '@/app/lib/prisma'
@@ -151,7 +151,7 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: Ne
       // Generate buffer
       const buffer = await workbook.xlsx.writeBuffer()
 
-      return new Response(buffer, {
+      return new NextResponse(buffer, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="analytics-report-${startDate.split('T')[0]}-to-${endDate.split('T')[0]}.xlsx"`
@@ -167,10 +167,10 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: Ne
       const chunks: Buffer[] = []
       doc.on('data', (chunk: Buffer) => chunks.push(chunk))
       
-      return new Promise<Response>((resolve) => {
+      return new Promise<NextResponse>((resolve) => {
         doc.on('end', () => {
           const buffer = Buffer.concat(chunks)
-          resolve(new Response(buffer, {
+          resolve(new NextResponse(buffer, {
             headers: {
               'Content-Type': 'application/pdf',
               'Content-Disposition': `attachment; filename="analytics-report-${startDate.split('T')[0]}-to-${endDate.split('T')[0]}.pdf"`

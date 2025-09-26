@@ -9,6 +9,7 @@ import { EyeIcon, TruckIcon } from '@heroicons/react/24/outline'
 import { useRouter } from 'next/navigation'
 import SearchBar from '@/app/components/search-bar'
 import FilterSelect from '@/app/components/filter-select'
+import ServiceGate from '@/app/components/service-gate'
 
 interface Order {
   id: string
@@ -213,13 +214,15 @@ export default function OrdersPage() {
                             <EyeIcon className="h-4 w-4" />
                           </button>
                           {order.status === 'CONFIRMED' && (
-                            <button 
-                              onClick={() => handleProcessOrder(order.id)}
-                              className="text-green-600 hover:text-green-900"
-                              title="Process Order"
-                            >
-                              <TruckIcon className="h-4 w-4" />
-                            </button>
+                            <ServiceGate serviceName="Order Processing">
+                              <button 
+                                onClick={() => handleProcessOrder(order.id)}
+                                className="text-green-600 hover:text-green-900"
+                                title="Process Order"
+                              >
+                                <TruckIcon className="h-4 w-4" />
+                              </button>
+                            </ServiceGate>
                           )}
                         </div>
                       </td>

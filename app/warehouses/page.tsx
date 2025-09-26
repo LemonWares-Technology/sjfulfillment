@@ -10,6 +10,7 @@ import SearchBar from '@/app/components/search-bar'
 import FilterSelect from '@/app/components/filter-select'
 import WarehouseModal from '@/app/components/warehouse-modal'
 import WarehouseZoneModal from '@/app/components/warehouse-zone-modal'
+import ServiceGate from '@/app/components/service-gate'
 
 interface Warehouse {
   id: string
@@ -136,13 +137,15 @@ export default function WarehousesPage() {
               </p>
             </div>
             {user?.role === 'SJFS_ADMIN' && (
-              <button
-                onClick={handleAddWarehouse}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add Warehouse
-              </button>
+              <ServiceGate serviceName="Warehouse Management">
+                <button
+                  onClick={handleAddWarehouse}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <PlusIcon className="h-5 w-5 mr-2" />
+                  Add Warehouse
+                </button>
+              </ServiceGate>
             )}
           </div>
         </div>

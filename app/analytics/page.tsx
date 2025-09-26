@@ -7,12 +7,13 @@ import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
 import { 
   ChartBarIcon, 
-  TrendingUpIcon, 
-  TrendingDownIcon,
+  ArrowTrendingUpIcon, 
+  ArrowTrendingDownIcon,
   CalendarIcon,
   ArrowDownTrayIcon,
   EyeIcon
 } from '@heroicons/react/24/outline'
+import ServiceGate from '@/app/components/service-gate'
 
 interface AnalyticsData {
   overview: {
@@ -128,9 +129,9 @@ export default function AnalyticsPage() {
                     changeType === 'increase' ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {changeType === 'increase' ? (
-                      <TrendingUpIcon className="self-center flex-shrink-0 h-4 w-4" />
+                      <ArrowTrendingUpIcon className="self-center flex-shrink-0 h-4 w-4" />
                     ) : (
-                      <TrendingDownIcon className="self-center flex-shrink-0 h-4 w-4" />
+                      <ArrowTrendingDownIcon className="self-center flex-shrink-0 h-4 w-4" />
                     )}
                     <span className="sr-only">{changeType === 'increase' ? 'Increased' : 'Decreased'} by</span>
                     {Math.abs(change)}%
@@ -178,20 +179,24 @@ export default function AnalyticsPage() {
               </p>
             </div>
             <div className="flex space-x-3">
-              <button
-                onClick={() => exportReport('excel')}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                Export Excel
-              </button>
-              <button
-                onClick={() => exportReport('pdf')}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                Export PDF
-              </button>
+              <ServiceGate serviceName="Analytics Dashboard">
+                <button
+                  onClick={() => exportReport('excel')}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                  Export Excel
+                </button>
+              </ServiceGate>
+              <ServiceGate serviceName="Analytics Dashboard">
+                <button
+                  onClick={() => exportReport('pdf')}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                  Export PDF
+                </button>
+              </ServiceGate>
             </div>
           </div>
         </div>
@@ -262,7 +267,7 @@ export default function AnalyticsPage() {
                 value={formatCurrency(analytics.overview.totalRevenue)}
                 change={analytics.overview.revenueGrowth}
                 changeType={analytics.overview.revenueGrowth >= 0 ? 'increase' : 'decrease'}
-                icon={TrendingUpIcon}
+                icon={ArrowTrendingUpIcon}
               />
               <StatCard
                 title="Total Products"

@@ -78,17 +78,28 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: Ne
       : 0
 
     // Daily orders data
-    const dailyOrders = await prisma.$queryRaw`
-      SELECT 
-        DATE(created_at) as date,
-        COUNT(*) as count,
-        SUM(total_amount) as revenue
-      FROM orders 
-      WHERE created_at >= ${start} AND created_at <= ${end}
-      ${user.role === 'MERCHANT_ADMIN' && user.merchantId ? `AND merchant_id = '${user.merchantId}'` : ''}
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `
+    const dailyOrders = user.role === 'MERCHANT_ADMIN' && user.merchantId 
+      ? await prisma.$queryRaw`
+          SELECT 
+            DATE(created_at) as date,
+            COUNT(*) as count,
+            SUM(total_amount) as revenue
+          FROM orders 
+          WHERE created_at >= ${start} AND created_at <= ${end}
+          AND merchant_id = ${user.merchantId}
+          GROUP BY DATE(created_at)
+          ORDER BY date ASC
+        `
+      : await prisma.$queryRaw`
+          SELECT 
+            DATE(created_at) as date,
+            COUNT(*) as count,
+            SUM(total_amount) as revenue
+          FROM orders 
+          WHERE created_at >= ${start} AND created_at <= ${end}
+          GROUP BY DATE(created_at)
+          ORDER BY date ASC
+        `
 
     // Monthly orders data
     const monthlyOrders = await prisma.$queryRaw`

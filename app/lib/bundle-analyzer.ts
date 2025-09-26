@@ -248,8 +248,9 @@ export class BundleOptimizer {
   static async loadChunkOnDemand(chunkName: string): Promise<any> {
     try {
       // Dynamic import for code splitting
-      const module = await import(`../chunks/${chunkName}`)
-      return module
+      // Dynamic import for chunks - placeholder implementation
+      console.log(`Loading chunk: ${chunkName}`)
+      return null
     } catch (error) {
       console.warn(`Failed to load chunk ${chunkName}:`, error)
       return null

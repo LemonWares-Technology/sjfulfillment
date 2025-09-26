@@ -95,8 +95,8 @@ export const POST = withRole(['MERCHANT_ADMIN'], async (request: NextRequest, us
           // Create new subscription
           await tx.merchantServiceSubscription.create({
             data: {
-              merchantId: user.merchantId,
-              serviceId: serviceId,
+              merchant: { connect: { id: user.merchantId } },
+              service: { connect: { id: serviceId } },
               quantity: quantity,
               priceAtSubscription: service.price,
               status: 'ACTIVE',

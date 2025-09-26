@@ -4,6 +4,12 @@ const prisma = new PrismaClient()
 
 async function seedServices() {
   try {
+    // Only seed in development environment
+    if (process.env.NODE_ENV === 'production') {
+      console.log('⚠️  Seeding is disabled in production environment')
+      return
+    }
+    
     console.log('Seeding services...')
 
     // Create sample services with daily pricing

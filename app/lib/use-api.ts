@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { cacheManager } from './cache-manager'
 
 interface ApiResponse<T = any> {
   success: boolean
@@ -12,6 +13,8 @@ interface ApiResponse<T = any> {
 
 interface ApiRequestInit extends RequestInit {
   silent?: boolean
+  cache?: boolean
+  cacheTTL?: number
 }
 
 export function useApi() {
@@ -21,6 +24,16 @@ export function useApi() {
     url: string,
     options: ApiRequestInit = {}
   ): Promise<T> => {
+    // Check cache for GET requests
+    if (options.method === 'GET' || !options.method) {
+      const cacheKey = cacheManager.generateKey(url, options.body ? JSON.parse(options.body as string) : undefined)
+      const cachedData = cacheManager.get<T>(cacheKey)
+      
+      if (cachedData && options.cache !== false) {
+        return cachedData
+      }
+    }
+
     setLoading(true)
     
     try {
@@ -42,6 +55,12 @@ export function useApi() {
 
       if (!data.success) {
         throw new Error(data.error || 'Request failed')
+      }
+
+      // Cache successful GET requests
+      if ((options.method === 'GET' || !options.method) && options.cache !== false) {
+        const cacheKey = cacheManager.generateKey(url, options.body ? JSON.parse(options.body as string) : undefined)
+        cacheManager.set(cacheKey, data.data, options.cacheTTL)
       }
 
       return data.data as T

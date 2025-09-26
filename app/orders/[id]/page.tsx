@@ -12,10 +12,11 @@ import {
   PhoneIcon,
   EnvelopeIcon,
   TruckIcon,
-  PackageIcon,
+  CubeIcon,
   CheckIcon,
   ClockIcon
 } from '@heroicons/react/24/outline'
+import ServiceGate from '@/app/components/service-gate'
 
 interface OrderItem {
   id: string
@@ -57,9 +58,9 @@ interface Order {
 const ORDER_STATUSES = [
   { value: 'PENDING', label: 'Pending', color: 'bg-yellow-100 text-yellow-800', icon: ClockIcon },
   { value: 'CONFIRMED', label: 'Confirmed', color: 'bg-blue-100 text-blue-800', icon: CheckIcon },
-  { value: 'PROCESSING', label: 'Processing', color: 'bg-purple-100 text-purple-800', icon: PackageIcon },
-  { value: 'PICKED', label: 'Picked', color: 'bg-indigo-100 text-indigo-800', icon: PackageIcon },
-  { value: 'PACKED', label: 'Packed', color: 'bg-orange-100 text-orange-800', icon: PackageIcon },
+  { value: 'PROCESSING', label: 'Processing', color: 'bg-purple-100 text-purple-800', icon: CubeIcon },
+  { value: 'PICKED', label: 'Picked', color: 'bg-indigo-100 text-indigo-800', icon: CubeIcon },
+  { value: 'PACKED', label: 'Packed', color: 'bg-orange-100 text-orange-800', icon: CubeIcon },
   { value: 'SHIPPED', label: 'Shipped', color: 'bg-cyan-100 text-cyan-800', icon: TruckIcon },
   { value: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', color: 'bg-pink-100 text-pink-800', icon: TruckIcon },
   { value: 'DELIVERED', label: 'Delivered', color: 'bg-green-100 text-green-800', icon: CheckIcon },
@@ -135,13 +136,15 @@ export default function OrderDetailsPage() {
               </div>
             </div>
             {canProcessOrder() && (
-              <button
-                onClick={() => router.push(`/orders/${orderId}/process`)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
-              >
-                <TruckIcon className="h-4 w-4" />
-                <span>Process Order</span>
-              </button>
+              <ServiceGate serviceName="Order Processing">
+                <button
+                  onClick={() => router.push(`/orders/${orderId}/process`)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
+                >
+                  <TruckIcon className="h-4 w-4" />
+                  <span>Process Order</span>
+                </button>
+              </ServiceGate>
             )}
           </div>
         </div>

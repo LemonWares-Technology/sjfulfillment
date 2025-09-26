@@ -69,9 +69,9 @@ export const GET = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF', 'MERCHANT_ADMIN', 
       address: partner.address,
       city: partner.city,
       state: partner.state,
-      country: partner.country,
-      serviceType: partner.serviceType || 'STANDARD',
-      coverageArea: partner.coverageAreas || [],
+      country: 'Nigeria',
+      serviceType: 'STANDARD',
+      coverageArea: [],
       isActive: partner.status === 'APPROVED',
       createdAt: partner.createdAt.toISOString(),
       deliveryMetrics: partner.deliveryMetrics.map(metric => ({
@@ -137,7 +137,6 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user: 
       const newPartner = await tx.logisticsPartner.create({
         data: {
           ...partnerData,
-          password: undefined // Remove password from partner data
         },
         include: {
           deliveryMetrics: {

@@ -13,7 +13,7 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
       return createErrorResponse('Invalid request data', 400)
     }
 
-    let result: any = { processed: 0, failed: 0, errors: [] }
+    let result: { processed: number; failed: number; errors: string[] } = { processed: 0, failed: 0, errors: [] }
 
     // Build where clause based on user role
     const whereClause: any = {
@@ -52,7 +52,7 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
 })
 
 async function handleProductBulkOperation(action: string, whereClause: any, data: any, user: JWTPayload) {
-  const result = { processed: 0, failed: 0, errors: [] }
+  const result: { processed: number; failed: number; errors: string[] } = { processed: 0, failed: 0, errors: [] }
 
   try {
     switch (action) {
@@ -139,7 +139,7 @@ async function handleProductBulkOperation(action: string, whereClause: any, data
 }
 
 async function handleOrderBulkOperation(action: string, whereClause: any, data: any, user: JWTPayload) {
-  const result = { processed: 0, failed: 0, errors: [] }
+  const result: { processed: number; failed: number; errors: string[] } = { processed: 0, failed: 0, errors: [] }
 
   try {
     switch (action) {
