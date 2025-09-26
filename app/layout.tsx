@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Red_Hat_Display } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./lib/auth-context";
 import { NotificationProvider } from "./lib/notification-context";
 import { WebSocketProvider } from "./lib/websocket-context";
 import { Toaster } from "react-hot-toast";
 
-const inter = Inter({
+const redHatDisplay = Red_Hat_Display({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-red-hat-display",
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -23,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${redHatDisplay.variable} font-sans antialiased`}>
         <AuthProvider>
           <NotificationProvider>
             <WebSocketProvider>

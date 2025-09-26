@@ -305,17 +305,29 @@ export function useBundlePerformance() {
         const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
         const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[]
 
+        if (!navigation) {
+          console.warn('Navigation timing not available')
+          return
+        }
+
         const jsResources = resources.filter(r => r.name.includes('.js'))
-        const totalSize = jsResources.reduce((sum, r) => sum + r.transferSize, 0)
+        const totalSize = jsResources.reduce((sum, r) => sum + (r.transferSize || 0), 0)
 
         setMetrics({
-          loadTime: navigation.loadEventEnd - navigation.loadEventStart,
-          parseTime: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
-          executeTime: navigation.domComplete - navigation.domContentLoadedEventEnd,
+          loadTime: (navigation.loadEventEnd || 0) - (navigation.loadEventStart || 0),
+          parseTime: (navigation.domContentLoadedEventEnd || 0) - (navigation.domContentLoadedEventStart || 0),
+          executeTime: (navigation.domComplete || 0) - (navigation.domContentLoadedEventEnd || 0),
           totalSize
         })
       } catch (error) {
         console.warn('Failed to measure bundle performance:', error)
+        // Set default values on error
+        setMetrics({
+          loadTime: 0,
+          parseTime: 0,
+          executeTime: 0,
+          totalSize: 0
+        })
       }
     }
 

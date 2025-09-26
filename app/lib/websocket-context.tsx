@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useAuth } from './auth-context'
 import { useNotifications } from './notification-context'
+import { io, Socket } from 'socket.io-client'
 
 interface WebSocketMessage {
   type: 'order_update' | 'stock_alert' | 'payment_received' | 'logistics_update' | 'warehouse_alert' | 'system_notification'
@@ -23,170 +24,156 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const { addNotification } = useNotifications()
-  const [socket, setSocket] = useState<WebSocket | null>(null)
+  const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
   const [subscribers, setSubscribers] = useState<Map<string, Set<(data: any) => void>>>(new Map())
+
+  const handleMessage = useCallback((type: string, data: any) => {
+    // Notify subscribers
+    const callbacks = subscribers.get(type)
+    if (callbacks) {
+      callbacks.forEach(callback => {
+        try {
+          callback(data)
+        } catch (error) {
+          // Handle callback error silently
+        }
+      })
+    }
+    
+    // Add notification for certain message types
+    if (['order_update', 'stock_alert', 'payment_received', 'logistics_update', 'warehouse_alert'].includes(type)) {
+      addNotification({
+        type: type.toUpperCase() as any,
+        title: getNotificationTitle(type),
+        message: getNotificationMessage(type, data),
+        isRead: false
+      })
+    }
+  }, [subscribers, addNotification])
 
   const connect = useCallback(() => {
     if (!user || socket) return
 
     try {
       setConnectionStatus('connecting')
-      const wsUrl = process.env.NODE_ENV === 'production' 
-        ? `wss://${window.location.host}/api/ws`
-        : `ws://localhost:3000/api/ws`
       
-      const newSocket = new WebSocket(wsUrl)
+      const socketUrl = process.env.NODE_ENV === 'production' 
+        ? process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'
+        : 'http://localhost:3001'
       
-      newSocket.onopen = () => {
-        console.log('WebSocket connected')
+      const newSocket = io(socketUrl, {
+        path: '/api/socketio',
+        transports: ['websocket', 'polling'],
+        autoConnect: true,
+        reconnection: true,
+        reconnectionDelay: 3000,
+        reconnectionAttempts: 5,
+        maxReconnectionAttempts: 5,
+        timeout: 20000,
+        forceNew: true
+      })
+      
+      newSocket.on('connect', () => {
         setIsConnected(true)
         setConnectionStatus('connected')
         
         // Send authentication message
-        newSocket.send(JSON.stringify({
-          type: 'auth',
+        newSocket.emit('auth', {
           token: localStorage.getItem('token'),
-          userId: user.id,
+          userId: user.userId,
           role: user.role,
           merchantId: user.merchantId
-        }))
-      }
-
-      newSocket.onmessage = (event) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(event.data)
-          handleMessage(message)
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error)
-        }
-      }
-
-      newSocket.onclose = () => {
-        console.log('WebSocket disconnected')
+        })
+      })
+      
+      newSocket.on('auth_success', (data) => {
+        // Authentication successful
+      })
+      
+      newSocket.on('order_update', (data) => {
+        handleMessage('order_update', data)
+      })
+      
+      newSocket.on('stock_alert', (data) => {
+        handleMessage('stock_alert', data)
+      })
+      
+      newSocket.on('payment_received', (data) => {
+        handleMessage('payment_received', data)
+      })
+      
+      newSocket.on('logistics_update', (data) => {
+        handleMessage('logistics_update', data)
+      })
+      
+      newSocket.on('warehouse_alert', (data) => {
+        handleMessage('warehouse_alert', data)
+      })
+      
+      newSocket.on('system_notification', (data) => {
+        handleMessage('system_notification', data)
+      })
+      
+      newSocket.on('disconnect', (reason) => {
         setIsConnected(false)
         setConnectionStatus('disconnected')
-        setSocket(null)
-        
-        // Attempt to reconnect after 5 seconds
-        setTimeout(() => {
-          if (user) {
-            connect()
-          }
-        }, 5000)
-      }
-
-      newSocket.onerror = (error) => {
-        console.error('WebSocket error:', error)
+      })
+      
+      newSocket.on('connect_error', (error) => {
         setConnectionStatus('error')
-      }
-
+        setIsConnected(false)
+      })
+      
+      newSocket.on('reconnect', (attemptNumber) => {
+        setConnectionStatus('connected')
+        setIsConnected(true)
+      })
+      
+      newSocket.on('reconnect_attempt', (attemptNumber) => {
+        setConnectionStatus('connecting')
+      })
+      
+      newSocket.on('reconnect_error', (error) => {
+        setConnectionStatus('error')
+      })
+      
+      newSocket.on('reconnect_failed', () => {
+        setConnectionStatus('error')
+        setIsConnected(false)
+      })
+      
       setSocket(newSocket)
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error)
       setConnectionStatus('error')
     }
-  }, [user, socket])
+  }, [user, socket, handleMessage])
 
   const disconnect = useCallback(() => {
     if (socket) {
-      socket.close()
+      socket.disconnect()
       setSocket(null)
       setIsConnected(false)
       setConnectionStatus('disconnected')
     }
   }, [socket])
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    // Handle different message types
-    switch (message.type) {
-      case 'order_update':
-        handleOrderUpdate(message.data)
-        break
-      case 'stock_alert':
-        handleStockAlert(message.data)
-        break
-      case 'payment_received':
-        handlePaymentReceived(message.data)
-        break
-      case 'logistics_update':
-        handleLogisticsUpdate(message.data)
-        break
-      case 'warehouse_alert':
-        handleWarehouseAlert(message.data)
-        break
-      case 'system_notification':
-        handleSystemNotification(message.data)
-        break
+  useEffect(() => {
+    if (user) {
+      connect()
+    } else {
+      disconnect()
     }
-
-    // Notify subscribers
-    const callbacks = subscribers.get(message.type)
-    if (callbacks) {
-      callbacks.forEach(callback => callback(message.data))
+    
+    return () => {
+      disconnect()
     }
-  }, [subscribers])
-
-  const handleOrderUpdate = useCallback((data: any) => {
-    addNotification({
-      title: `Order ${data.orderNumber} Updated`,
-      message: `Status changed to ${data.status}`,
-      type: 'ORDER',
-      data
-    })
-  }, [addNotification])
-
-  const handleStockAlert = useCallback((data: any) => {
-    addNotification({
-      title: 'Low Stock Alert',
-      message: `${data.productName} is running low (${data.currentStock} remaining)`,
-      type: 'STOCK',
-      data
-    })
-  }, [addNotification])
-
-  const handlePaymentReceived = useCallback((data: any) => {
-    addNotification({
-      title: 'Payment Received',
-      message: `Payment of ₦${data.amount.toLocaleString()} received for order ${data.orderNumber}`,
-      type: 'PAYMENT',
-      data
-    })
-  }, [addNotification])
-
-  const handleLogisticsUpdate = useCallback((data: any) => {
-    addNotification({
-      title: 'Logistics Update',
-      message: `${data.partnerName} status: ${data.status}`,
-      type: 'LOGISTICS',
-      data
-    })
-  }, [addNotification])
-
-  const handleWarehouseAlert = useCallback((data: any) => {
-    addNotification({
-      title: 'Warehouse Alert',
-      message: `${data.warehouseName}: ${data.alert}`,
-      type: 'WAREHOUSE',
-      data
-    })
-  }, [addNotification])
-
-  const handleSystemNotification = useCallback((data: any) => {
-    addNotification({
-      title: data.title,
-      message: data.message,
-      type: 'SYSTEM',
-      data
-    })
-  }, [addNotification])
+  }, [user, connect, disconnect])
 
   const sendMessage = useCallback((message: any) => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message))
-    } else {
-      console.warn('WebSocket is not connected')
+    if (socket && socket.connected) {
+      socket.emit(message.type, message.data)
     }
   }, [socket])
 
@@ -215,21 +202,39 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  // Connect when user is available
-  useEffect(() => {
-    if (user && !socket) {
-      connect()
-    } else if (!user && socket) {
-      disconnect()
+  const getNotificationTitle = (type: string): string => {
+    switch (type) {
+      case 'order_update':
+        return 'Order Update'
+      case 'stock_alert':
+        return 'Stock Alert'
+      case 'payment_received':
+        return 'Payment Received'
+      case 'logistics_update':
+        return 'Logistics Update'
+      case 'warehouse_alert':
+        return 'Warehouse Alert'
+      default:
+        return 'System Notification'
     }
-  }, [user, socket, connect, disconnect])
+  }
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disconnect()
+  const getNotificationMessage = (type: string, data: any): string => {
+    switch (type) {
+      case 'order_update':
+        return `Order ${data.orderNumber || data.id} has been updated`
+      case 'stock_alert':
+        return `Low stock alert for ${data.productName || 'product'}`
+      case 'payment_received':
+        return `Payment of ${data.amount || 'N/A'} received`
+      case 'logistics_update':
+        return `Delivery update for order ${data.orderNumber || data.id}`
+      case 'warehouse_alert':
+        return `Warehouse alert: ${data.message || 'Check warehouse status'}`
+      default:
+        return data.message || 'System notification received'
     }
-  }, [disconnect])
+  }
 
   const value: WebSocketContextType = {
     isConnected,
@@ -253,25 +258,3 @@ export function useWebSocket() {
   }
   return context
 }
-
-// Hook for real-time data updates
-export function useRealtimeData<T>(
-  eventType: string,
-  initialData: T,
-  updateCallback: (data: T, newData: any) => T
-): [T, boolean] {
-  const { isConnected, subscribe, unsubscribe } = useWebSocket()
-  const [data, setData] = useState<T>(initialData)
-
-  useEffect(() => {
-    const handleUpdate = (newData: any) => {
-      setData(prevData => updateCallback(prevData, newData))
-    }
-
-    subscribe(eventType, handleUpdate)
-    return () => unsubscribe(eventType, handleUpdate)
-  }, [eventType, subscribe, unsubscribe, updateCallback])
-
-  return [data, isConnected]
-}
-

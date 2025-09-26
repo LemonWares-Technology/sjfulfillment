@@ -1,17 +1,52 @@
 import { NextRequest } from 'next/server'
 
-// This is a placeholder for WebSocket implementation
-// In a real application, you would need to set up a proper WebSocket server
-// This could be done with Socket.io, ws library, or other WebSocket solutions
-
+// Simple WebSocket endpoint for development
 export async function GET(request: NextRequest) {
-  // This is a placeholder response
-  // In a real implementation, you would upgrade the HTTP connection to WebSocket
-  return new Response('WebSocket endpoint - requires WebSocket upgrade', {
-    status: 426,
+  const upgrade = request.headers.get('upgrade')
+  
+  if (upgrade !== 'websocket') {
+    return new Response('Expected WebSocket upgrade', { 
+      status: 426,
+      headers: {
+        'Upgrade': 'websocket',
+        'Connection': 'Upgrade'
+      }
+    })
+  }
+
+  // For development, return a simple response
+  return new Response(JSON.stringify({
+    message: 'WebSocket endpoint ready',
+    status: 'development',
+    note: 'Use Socket.io for production WebSocket functionality'
+  }), {
+    status: 200,
     headers: {
-      'Upgrade': 'websocket',
-      'Connection': 'Upgrade'
+      'Content-Type': 'application/json'
+    }
+  })
+}
+
+export async function POST(request: NextRequest) {
+  const upgrade = request.headers.get('upgrade')
+  
+  if (upgrade !== 'websocket') {
+    return new Response('Expected WebSocket upgrade', { 
+      status: 426,
+      headers: {
+        'Upgrade': 'websocket',
+        'Connection': 'Upgrade'
+      }
+    })
+  }
+
+  return new Response(JSON.stringify({
+    message: 'WebSocket POST endpoint',
+    status: 'ready'
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json'
     }
   })
 }
