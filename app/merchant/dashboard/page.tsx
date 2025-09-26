@@ -7,7 +7,6 @@ import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
 import { useRouter } from 'next/navigation'
-import { getMerchantServices } from '@/app/lib/service-access'
 
 interface MerchantService {
   id: string
@@ -34,12 +33,29 @@ interface MerchantStats {
   recentOrders: any[]
 }
 
+interface DailyCharges {
+  date: string
+  dailyCharges: Array<{
+    serviceId: string
+    serviceName: string
+    serviceDescription: string
+    serviceCategory: string
+    quantity: number
+    dailyPrice: number
+    totalDailyCharge: number
+  }>
+  totalDailyCharge: number
+  accumulatedCharges: number
+  subscriptions: number
+}
+
 export default function MerchantDashboard() {
   const { user } = useAuth()
   const { get, loading } = useApi()
   const router = useRouter()
   const [stats, setStats] = useState<MerchantStats | null>(null)
   const [merchantServices, setMerchantServices] = useState<MerchantService[]>([])
+  const [dailyCharges, setDailyCharges] = useState<DailyCharges | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,13 +66,18 @@ export default function MerchantDashboard() {
 
         // Fetch merchant services
         if (user?.merchantId) {
-          const services = await getMerchantServices(user.merchantId)
+          const services = await get<MerchantService[]>('/api/merchant-services/subscribe')
           setMerchantServices(services)
+
+          // Fetch daily charges
+          const charges = await get<DailyCharges>('/api/billing/daily-charges')
+          setDailyCharges(charges)
         }
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
         setStats(null)
         setMerchantServices([])
+        setDailyCharges(null)
       }
     }
 
@@ -207,6 +228,65 @@ export default function MerchantDashboard() {
           </div>
         </div>
 
+        {/* Daily Charges Section */}
+        {dailyCharges && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Daily Service Charges</h2>
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(dailyCharges.totalDailyCharge)}
+                  </div>
+                  <div className="text-sm text-gray-500">Today's Charges</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {formatCurrency(dailyCharges.accumulatedCharges)}
+                  </div>
+                  <div className="text-sm text-gray-500">Accumulated This Month</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {dailyCharges.subscriptions}
+                  </div>
+                  <div className="text-sm text-gray-500">Active Services</div>
+                </div>
+              </div>
+              
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Service Breakdown</h3>
+                <div className="space-y-3">
+                  {dailyCharges.dailyCharges.map((charge) => (
+                    <div key={charge.serviceId} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+                      <div>
+                        <div className="font-medium text-gray-900">{charge.serviceName}</div>
+                        <div className="text-sm text-gray-500">
+                          {charge.serviceCategory} • Qty: {charge.quantity}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-gray-900">
+                          {formatCurrency(charge.totalDailyCharge)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {formatCurrency(charge.dailyPrice)}/day
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Payment Method:</strong> Cash on Delivery - Charges will be collected when orders are delivered.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Subscribed Services */}
         {merchantServices.length > 0 && (
           <div className="mb-8">
@@ -219,7 +299,7 @@ export default function MerchantDashboard() {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-500">Qty: {service.quantity}</span>
                     <span className="text-sm font-medium text-gray-900">
-                      {formatCurrency(service.priceAtSubscription)}
+                      {formatCurrency(service.priceAtSubscription)}/day
                     </span>
                   </div>
                   <div className="mt-2">

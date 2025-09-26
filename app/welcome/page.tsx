@@ -288,6 +288,15 @@ export default function WelcomePage() {
                   </div>
                 </div>
 
+                <div className="text-right">
+                  <a
+                    href="/forgot-password"
+                    className="text-sm text-blue-600 hover:text-blue-700"
+                  >
+                    Forgot your password?
+                  </a>
+                </div>
+
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="button"

@@ -40,16 +40,11 @@ export default function PaymentGate({ children, userRole }: PaymentGateProps) {
       const status = await get<PaymentStatus>('/api/merchants/payment-status', { silent: true })
       setPaymentStatus(status)
       
-      // If merchant needs payment, redirect to payment page
-      if (status && (!status.hasActiveSubscription || status.needsPayment || status.subscriptionStatus !== 'ACTIVE')) {
-        router.push('/payment-required')
-        return
-      }
+      // In cash-on-delivery model, don't redirect to payment page
+      // Merchants can use services and pay when orders are delivered
     } catch (error) {
       console.error('Failed to check payment status:', error)
-      // On error, redirect to payment page to be safe
-      router.push('/payment-required')
-      return
+      // Don't redirect on error in COD model
     } finally {
       setIsChecking(false)
     }
@@ -61,29 +56,13 @@ export default function PaymentGate({ children, userRole }: PaymentGateProps) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verifying payment status...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     )
   }
 
-  // For non-merchant roles, show children directly
-  if (userRole !== 'MERCHANT_ADMIN' && userRole !== 'MERCHANT_STAFF') {
-    return <>{children}</>
-  }
-
-  // For merchant roles, only show children if payment is verified
-  if (paymentStatus && paymentStatus.hasActiveSubscription && !paymentStatus.needsPayment && paymentStatus.subscriptionStatus === 'ACTIVE') {
-    return <>{children}</>
-  }
-
-  // If we reach here, payment is required - redirect will happen in useEffect
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Redirecting to payment...</p>
-      </div>
-    </div>
-  )
+  // In cash-on-delivery model, always show children for merchant roles
+  // No payment blocking - merchants pay when orders are delivered
+  return <>{children}</>
 }

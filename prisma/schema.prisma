@@ -50,6 +50,22 @@ enum UserRole {
 }
 
 // Subscription & Billing Models
+model Service {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  price       Decimal  @db.Decimal(10, 2) // Daily price
+  category    String
+  features    Json // Store service features as JSON
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  merchantSubscriptions MerchantServiceSubscription[]
+
+  @@map("services")
+}
+
 model ServicePlan {
   id          String   @id @default(cuid())
   name        String   @unique
@@ -86,6 +102,24 @@ enum PricingType {
   YEARLY
   PER_TRANSACTION
   PER_ITEM
+}
+
+model MerchantServiceSubscription {
+  id                  String             @id @default(cuid())
+  merchantId          String
+  serviceId           String
+  quantity            Int                @default(1)
+  priceAtSubscription Decimal            @db.Decimal(10, 2) // Daily price when subscribed
+  status              SubscriptionStatus @default(ACTIVE)
+  startDate           DateTime
+  endDate             DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  service  Service  @relation(fields: [serviceId], references: [id])
+
+  @@map("merchant_service_subscriptions")
 }
 
 model Subscription {
@@ -146,16 +180,18 @@ model Merchant {
   taxId            String?
   isActive         Boolean          @default(true)
   onboardingStatus OnboardingStatus @default(PENDING)
+  lastPlanUpdate   DateTime?        // Track when merchant last updated their service plan
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
   // Relations
-  users          User[]
-  subscriptions  Subscription[]
-  products       Product[]
-  orders         Order[]
-  warehouses     WarehouseLocation[]
-  billingRecords BillingRecord[]
+  users                    User[]
+  subscriptions            Subscription[]
+  merchantServiceSubscriptions MerchantServiceSubscription[]
+  products                 Product[]
+  orders                   Order[]
+  warehouses               WarehouseLocation[]
+  billingRecords           BillingRecord[]
 
   @@map("merchants")
 }
@@ -398,7 +434,7 @@ model LogisticsPartner {
   cacNumber     String
   coverageAreas String[] // States/cities they cover
   guarantors    Json // Guarantor information
-  status        PartnerStatus @default(PENDING)
+  status        PartnerStatus @default(APPROVED)
   documents     Json? // Store document URLs
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -444,6 +480,7 @@ enum BillingType {
   TRANSACTION_FEE
   COD_FEE
   ADDON_SERVICE
+  DAILY_SERVICE_FEE
 }
 
 enum BillingStatus {

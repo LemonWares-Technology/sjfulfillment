@@ -21,9 +21,9 @@ export default function MerchantRegistrationSuccessPage() {
           <div className="flex items-start space-x-3">
             <ClockIcon className="h-6 w-6 text-blue-500 mt-1" />
             <div>
-              <h3 className="font-semibold text-gray-900">Next step: Complete payment</h3>
+              <h3 className="font-semibold text-gray-900">Next step: Select services</h3>
               <p className="text-gray-600 text-sm mt-1">
-                Login and complete payment to access the platform, then select your services.
+                Login and select the services you want access to. You'll pay daily for your selected services.
               </p>
             </div>
           </div>
@@ -41,9 +41,9 @@ export default function MerchantRegistrationSuccessPage() {
           <div className="flex items-start space-x-3">
             <CheckCircleIcon className="h-6 w-6 text-green-500 mt-1" />
             <div>
-              <h3 className="font-semibold text-gray-900">After payment & service selection</h3>
+              <h3 className="font-semibold text-gray-900">After service selection</h3>
               <p className="text-gray-600 text-sm mt-1">
-                You'll have access to only the services you select and pay for.
+                You'll have access to only the services you select. Daily charges will be accumulated and paid via cash on delivery.
               </p>
             </div>
           </div>
@@ -54,7 +54,7 @@ export default function MerchantRegistrationSuccessPage() {
             href="/login"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg inline-block"
           >
-            Login & Complete Payment
+            Login & Select Services
           </Link>
           
           <p className="text-sm text-gray-600">

@@ -101,7 +101,7 @@ export default function MerchantRegistrationPage() {
     if (!validateStep2()) return
 
     try {
-      await post('/api/merchants/register-public', {
+      const response = await post('/api/merchants/register-public', {
         merchant: merchantData,
         user: {
           firstName: userData.firstName,
@@ -112,7 +112,7 @@ export default function MerchantRegistrationPage() {
         }
       })
 
-      // Redirect to success page or login
+      // Redirect to success page
       router.push('/merchant-registration-success')
     } catch (error) {
       console.error('Registration failed:', error)

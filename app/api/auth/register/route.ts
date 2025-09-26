@@ -5,23 +5,31 @@ import { createResponse, createErrorResponse, withRole } from '../../../lib/api-
 import { createUserSchema } from '../../../lib/validations'
 
 // POST /api/auth/register
-export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) => {
+export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: NextRequest, user) => {
   try {
     const body = await request.json()
     const userData = createUserSchema.parse(body)
 
-    // Check if user already exists
+    // Check if user already exists (scoped to merchant for merchant admins)
+    const whereClause: any = {
+      OR: [
+        { email: userData.email },
+        ...(userData.phone ? [{ phone: userData.phone }] : [])
+      ]
+    }
+
+    // For merchant admins, only check within their merchant
+    if (user.role === 'MERCHANT_ADMIN' && userData.merchantId) {
+      whereClause.merchantId = userData.merchantId
+    }
+
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: userData.email },
-          ...(userData.phone ? [{ phone: userData.phone }] : [])
-        ]
-      }
+      where: whereClause
     })
 
     if (existingUser) {
-      return createErrorResponse('User with this email or phone already exists', 400)
+      const scope = user.role === 'MERCHANT_ADMIN' ? 'in your merchant' : 'globally'
+      return createErrorResponse(`User with this email or phone already exists ${scope}`, 400)
     }
 
     // Hash password
@@ -32,6 +40,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) 
       data: {
         ...userData,
         password: hashedPassword,
+        isActive: true, // Explicitly set as active for admin-created users
         emailVerified: new Date() // Auto-verify for admin-created users
       },
       select: {

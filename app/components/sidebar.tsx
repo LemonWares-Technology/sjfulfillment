@@ -15,7 +15,8 @@ import {
   UserGroupIcon,
   TruckIcon,
   ArrowPathIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline'
 
 interface NavigationItem {
@@ -63,16 +64,40 @@ const navigationItems: NavigationItem[] = [
     roles: ['SJFS_ADMIN']
   },
   {
-    name: 'Subscriptions',
-    href: '/subscriptions',
+    name: 'All Staff',
+    href: '/admin/staff',
+    icon: UserGroupIcon,
+    roles: ['SJFS_ADMIN']
+  },
+  {
+    name: 'Merchant Subscriptions',
+    href: '/admin/subscriptions',
     icon: CreditCardIcon,
-    roles: ['SJFS_ADMIN', 'MERCHANT_ADMIN']
+    roles: ['SJFS_ADMIN']
+  },
+  {
+    name: 'Plan Management',
+    href: '/merchant/plans',
+    icon: CreditCardIcon,
+    roles: ['MERCHANT_ADMIN']
   },
   {
     name: 'Logistics',
     href: '/logistics',
     icon: TruckIcon,
     roles: ['SJFS_ADMIN', 'WAREHOUSE_STAFF']
+  },
+  {
+    name: 'Analytics',
+    href: '/analytics',
+    icon: ChartBarIcon,
+    roles: ['SJFS_ADMIN', 'MERCHANT_ADMIN']
+  },
+  {
+    name: 'Performance',
+    href: '/performance',
+    icon: ChartBarIcon,
+    roles: ['SJFS_ADMIN']
   },
   {
     name: 'Notifications',

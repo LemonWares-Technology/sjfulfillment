@@ -93,7 +93,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push('/admin/dashboard')
         break
       case 'MERCHANT_ADMIN':
-        router.push('/merchant/dashboard')
+        // Check if merchant has selected services
+        if (userData.merchantId) {
+          try {
+            const servicesResponse = await fetch('/api/merchant-services/status', {
+              headers: {
+                'Authorization': `Bearer ${authToken}`
+              }
+            })
+            
+            if (servicesResponse.ok) {
+              const servicesData = await servicesResponse.json()
+              // If no services selected, redirect to service selection
+              if (!servicesData.data.hasServices) {
+                router.push('/service-selection')
+              } else {
+                router.push('/merchant/dashboard')
+              }
+            } else {
+              // If error checking services, redirect to service selection
+              router.push('/service-selection')
+            }
+          } catch (error) {
+            // If error checking services, redirect to service selection
+            router.push('/service-selection')
+          }
+        } else {
+          router.push('/merchant/dashboard')
+        }
         break
       case 'MERCHANT_STAFF':
         router.push('/staff/dashboard')

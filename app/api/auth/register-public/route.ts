@@ -51,6 +51,7 @@ export const POST = async (request: NextRequest) => {
       data: {
         ...userData,
         password: hashedPassword,
+        isActive: true, // Explicitly set as active for initial admin
         emailVerified: new Date() // Auto-verify for initial admin
       },
       select: {

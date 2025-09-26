@@ -25,7 +25,7 @@ interface SelectedService {
 
 export default function ServiceSelectionPage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const { get, post, loading } = useApi()
   const [services, setServices] = useState<Service[]>([])
   const [selectedServices, setSelectedServices] = useState<{[key: string]: SelectedService}>({})
@@ -33,13 +33,33 @@ export default function ServiceSelectionPage() {
   const [errors, setErrors] = useState<{[key: string]: string}>({})
 
   useEffect(() => {
+    console.log('Service selection page loaded, user:', user, 'authLoading:', authLoading)
+    if (authLoading) {
+      console.log('Auth still loading...')
+      return
+    }
+    if (!user) {
+      console.log('No user found, redirecting to login')
+      router.push('/welcome')
+      return
+    }
     fetchServices()
-  }, [])
+  }, [user, router, authLoading])
 
   const fetchServices = async () => {
     try {
+      console.log('Fetching services...')
       const data = await get<Service[]>('/api/services')
-      setServices(data.filter(service => service.isActive))
+      console.log('Services data received:', data)
+      // Convert price strings to numbers and filter active services
+      const processedServices = data
+        .filter(service => service.isActive)
+        .map(service => ({
+          ...service,
+          price: typeof service.price === 'string' ? parseFloat(service.price) : service.price
+        }))
+      console.log('Processed services:', processedServices)
+      setServices(processedServices)
     } catch (error) {
       console.error('Failed to fetch services:', error)
       setErrors({ fetch: 'Failed to load services. Please refresh the page.' })
@@ -108,6 +128,18 @@ export default function ServiceSelectionPage() {
 
   const serviceCategories = [...new Set(services.map(s => s.category))]
 
+  // Show loading state while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -115,14 +147,14 @@ export default function ServiceSelectionPage() {
         <div className="text-center mb-8">
           <CheckCircleIcon className="mx-auto h-16 w-16 text-green-500 mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Payment Successful!
+            Account Verified!
           </h1>
           <p className="text-lg text-gray-600 mb-4">
-            Now select the services you want access to on our platform.
+            Select the services you want access to. You'll pay daily for your selected services via cash on delivery.
           </p>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md mx-auto">
-            <p className="text-sm text-green-800">
-              <strong>Payment Verified:</strong> Your account is now active. Choose your services below.
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+            <p className="text-sm text-blue-800">
+              <strong>Cash on Delivery:</strong> Daily charges will be accumulated and collected when orders are delivered.
             </p>
           </div>
         </div>
@@ -166,7 +198,7 @@ export default function ServiceSelectionPage() {
                             <div className="text-lg font-bold text-gray-900">
                               {formatCurrency(service.price)}
                             </div>
-                            <div className="text-xs text-gray-500">per month</div>
+                            <div className="text-xs text-gray-500">per day</div>
                           </div>
                         </div>
 
@@ -278,7 +310,7 @@ export default function ServiceSelectionPage() {
                 </button>
 
                 <p className="text-xs text-gray-500 mt-3 text-center">
-                  You can add or remove services later from your dashboard.
+                  You can add or remove services later from your dashboard. Daily charges will be collected via cash on delivery.
                 </p>
               </div>
             </div>

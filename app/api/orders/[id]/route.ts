@@ -4,9 +4,9 @@ import { createResponse, createErrorResponse, withRole } from '../../../lib/api-
 import { updateOrderStatusSchema } from '../../../lib/validations'
 
 // GET /api/orders/[id]
-export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF', 'WAREHOUSE_STAFF'], async (request: NextRequest, user, { params }: { params: { id: string } }) => {
+export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF', 'WAREHOUSE_STAFF'], async (request: NextRequest, user, { params }: { params: Promise<{ id: string }> }) => {
   try {
-    const orderId = params.id
+    const { id: orderId } = await params
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -80,9 +80,9 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF', '
 })
 
 // PUT /api/orders/[id]
-export const PUT = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF', 'WAREHOUSE_STAFF'], async (request: NextRequest, user, { params }: { params: { id: string } }) => {
+export const PUT = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF', 'WAREHOUSE_STAFF'], async (request: NextRequest, user, { params }: { params: Promise<{ id: string }> }) => {
   try {
-    const orderId = params.id
+    const { id: orderId } = await params
     const body = await request.json()
     const updateData = updateOrderStatusSchema.parse(body)
 
@@ -205,8 +205,8 @@ export const POST = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: 
     }
 
     // Validate items belong to order
-    const orderItemIds = order.orderItems.map(item => item.id)
-    const validItems = items.filter(item => orderItemIds.includes(item.orderItemId))
+    const orderItemIds = order.orderItems.map((item: any) => item.id)
+    const validItems = items.filter((item: any) => orderItemIds.includes(item.orderItemId))
     
     if (validItems.length !== items.length) {
       return createErrorResponse('Some items do not belong to this order', 400)

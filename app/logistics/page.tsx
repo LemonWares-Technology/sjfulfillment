@@ -6,6 +6,7 @@ import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
 import { PlusIcon, PencilIcon, TruckIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import LogisticsPartnerModal from '@/app/components/logistics-partner-modal'
 
 interface LogisticsPartner {
   id: string
@@ -27,6 +28,22 @@ interface LogisticsPartner {
     onTimeDeliveryRate: number
     totalDeliveries: number
   }[]
+  // Additional fields for creation/editing
+  companyName?: string
+  cacNumber?: string
+  coverageAreas?: string[]
+  password?: string
+  guarantors?: {
+    name: string
+    phone: string
+    address: string
+    relationship: string
+  }
+  documents?: {
+    cacCertificate?: string
+    insuranceCertificate?: string
+    bankStatement?: string
+  }
 }
 
 export default function LogisticsPage() {
@@ -35,6 +52,8 @@ export default function LogisticsPage() {
   const [logisticsPartners, setLogisticsPartners] = useState<LogisticsPartner[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [serviceFilter, setServiceFilter] = useState('ALL')
+  const [showPartnerModal, setShowPartnerModal] = useState(false)
+  const [editingPartner, setEditingPartner] = useState<LogisticsPartner | null>(null)
 
   useEffect(() => {
     fetchLogisticsPartners()
@@ -42,11 +61,35 @@ export default function LogisticsPage() {
 
   const fetchLogisticsPartners = async () => {
     try {
-      const data = await get<LogisticsPartner[]>('/api/logistics-partners', { silent: true })
-      setLogisticsPartners(Array.isArray(data) ? data : [])
+      const response = await get<{partners: LogisticsPartner[]}>('/api/logistics-partners', { silent: true })
+      setLogisticsPartners(response?.partners || [])
     } catch (error) {
       console.error('Failed to fetch logistics partners:', error)
       setLogisticsPartners([])
+    }
+  }
+
+  const handleAddPartner = () => {
+    setEditingPartner(null)
+    setShowPartnerModal(true)
+  }
+
+  const handleEditPartner = (partner: LogisticsPartner) => {
+    setEditingPartner(partner)
+    setShowPartnerModal(true)
+  }
+
+  const handleCloseModal = () => {
+    setShowPartnerModal(false)
+    setEditingPartner(null)
+  }
+
+  const handleSavePartner = (partnerData?: any) => {
+    fetchLogisticsPartners()
+    
+    // Show success message with login credentials for new partners
+    if (partnerData && !editingPartner) {
+      alert(`Logistics partner created successfully!\n\nLogin Instructions:\nEmail: ${partnerData.email}\nPassword: ${partnerData.password}\n\nPlease share these credentials with the logistics partner. They can reset their password using "Forgot Password" on the login page.`)
     }
   }
 
@@ -86,10 +129,15 @@ export default function LogisticsPage() {
                 Manage delivery and shipping partners
               </p>
             </div>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center">
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add Partner
-            </button>
+            {user?.role === 'SJFS_ADMIN' && (
+              <button 
+                onClick={handleAddPartner}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Partner
+              </button>
+            )}
           </div>
         </div>
 
@@ -184,11 +232,16 @@ export default function LogisticsPage() {
                   }`}>
                     {partner.isActive ? 'Active' : 'Inactive'}
                   </span>
-                  <div className="flex space-x-2">
-                    <button className="text-blue-600 hover:text-blue-900">
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {user?.role === 'SJFS_ADMIN' && (
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleEditPartner(partner)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -200,11 +253,22 @@ export default function LogisticsPage() {
             <TruckIcon className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">No logistics partners found</h3>
             <p className="mt-1 text-sm text-gray-500">
-              Get started by adding your first logistics partner.
+              {user?.role === 'SJFS_ADMIN' 
+                ? 'Get started by adding your first logistics partner.'
+                : 'Logistics partners will appear here once they are added by administrators.'
+              }
             </p>
           </div>
         )}
       </div>
+
+      {/* Logistics Partner Modal */}
+      <LogisticsPartnerModal
+        isOpen={showPartnerModal}
+        onClose={handleCloseModal}
+        partner={editingPartner}
+        onSave={handleSavePartner}
+      />
     </DashboardLayout>
   )
 }

@@ -14,6 +14,7 @@ interface Product {
   weight: number
   dimensions: string
   isActive: boolean
+  images?: string[]
 }
 
 interface ProductModalProps {
@@ -25,6 +26,7 @@ interface ProductModalProps {
 
 export default function ProductModal({ isOpen, onClose, product, onSave }: ProductModalProps) {
   const { post, put, loading } = useApi()
+  const [uploadingImages, setUploadingImages] = useState(false)
   const [formData, setFormData] = useState<Product>({
     name: '',
     sku: '',
@@ -33,7 +35,8 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
     category: '',
     weight: 0,
     dimensions: '',
-    isActive: true
+    isActive: true,
+    images: []
   })
 
   useEffect(() => {
@@ -48,10 +51,51 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
         category: '',
         weight: 0,
         dimensions: '',
-        isActive: true
+        isActive: true,
+        images: []
       })
     }
   }, [product])
+
+  const handleImageUpload = async (files: FileList) => {
+    setUploadingImages(true)
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const response = await fetch('/api/upload/image', {
+          method: 'POST',
+          body: formData,
+        })
+        
+        if (!response.ok) {
+          throw new Error('Upload failed')
+        }
+        
+        const result = await response.json()
+        return result.url
+      })
+
+      const uploadedUrls = await Promise.all(uploadPromises)
+      setFormData(prev => ({
+        ...prev,
+        images: [...(prev.images || []), ...uploadedUrls]
+      }))
+    } catch (error) {
+      console.error('Image upload failed:', error)
+      alert('Failed to upload images. Please try again.')
+    } finally {
+      setUploadingImages(false)
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images?.filter((_, i) => i !== index) || []
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -192,6 +236,57 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+            </div>
+
+            {/* Image Upload Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Product Images
+              </label>
+              
+              {/* File Input */}
+              <div className="mb-4">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => e.target.files && handleImageUpload(e.target.files)}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  disabled={uploadingImages}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Upload multiple images (JPEG, PNG, WebP). Max 5MB per image.
+                </p>
+              </div>
+
+              {/* Image Preview */}
+              {formData.images && formData.images.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {formData.images.map((imageUrl, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={imageUrl}
+                        alt={`Product ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-md border border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {uploadingImages && (
+                <div className="text-center py-4">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-sm text-gray-600">Uploading images...</p>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center">

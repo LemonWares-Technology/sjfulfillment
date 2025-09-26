@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Sidebar from './sidebar'
 import MobileMenu from './mobile-menu'
+import NotificationBell from './notification-bell'
+import ConnectionStatus from './connection-status'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -64,6 +66,8 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
               </div>
               
               <div className="flex items-center space-x-4">
+                <ConnectionStatus />
+                <NotificationBell />
                 <span className="hidden sm:block text-sm text-gray-700">
                   Welcome, {user.firstName} {user.lastName}
                 </span>

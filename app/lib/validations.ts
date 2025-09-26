@@ -198,6 +198,7 @@ export const createLogisticsPartnerSchema = z.object({
   state: z.string().min(1),
   cacNumber: z.string().min(1),
   coverageAreas: z.array(z.string()).min(1),
+  password: z.string().min(8),
   guarantors: z.object({
     name: z.string(),
     phone: z.string(),

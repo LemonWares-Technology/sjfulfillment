@@ -53,11 +53,12 @@ export default function StaffManagementPage() {
 
   const fetchStaff = async () => {
     try {
-      const data = await get<StaffMember[]>('/api/users', { silent: true })
-      // Filter to only show staff members for this merchant
-      setStaff(Array.isArray(data) ? data.filter(member => 
+      const response = await get<{users: StaffMember[]}>('/api/users', { silent: true })
+      // The API already filters by merchant for MERCHANT_ADMIN, so we just need to filter by role
+      const allUsers = response?.users || []
+      setStaff(allUsers.filter(member => 
         member.role === 'MERCHANT_STAFF' || member.role === 'MERCHANT_ADMIN'
-      ) : [])
+      ))
     } catch (error) {
       console.error('Failed to fetch staff:', error)
       setStaff([])
@@ -66,7 +67,7 @@ export default function StaffManagementPage() {
 
   const handleAddStaff = async () => {
     try {
-      await post('/api/auth/register', {
+      await post('/api/users', {
         ...newStaffData,
         merchantId: user?.merchantId
       })

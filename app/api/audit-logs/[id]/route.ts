@@ -4,9 +4,9 @@ import { prisma } from "@/app/lib/prisma"
 import { NextRequest } from "next/server"
 
 // GET /api/audit-logs/[id]
-export const GET = withRole(['SJFS_ADMIN'], async (request: NextRequest, user: JWTPayload, { params }: { params: { id: string } }) => {
+export const GET = withRole(['SJFS_ADMIN'], async (request: NextRequest, user: JWTPayload, { params }: { params: Promise<{ id: string }> }) => {
     try {
-      const auditLogId = params.id
+      const { id: auditLogId } = await params
   
       const auditLog = await prisma.auditLog.findUnique({
         where: { id: auditLogId },

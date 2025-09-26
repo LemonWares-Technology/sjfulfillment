@@ -2,81 +2,35 @@
 
 import { useAuth } from '@/app/lib/auth-context'
 import DashboardLayout from '@/app/components/dashboard-layout'
-import { useApi } from '@/app/lib/use-api'
-import { useEffect, useState } from 'react'
+import { useNotifications } from '@/app/lib/notification-context'
 import { formatDateTime } from '@/app/lib/utils'
-import { BellIcon, CheckIcon } from '@heroicons/react/24/outline'
-
-interface Notification {
-  id: string
-  title: string
-  message: string
-  type: string
-  isRead: boolean
-  createdAt: string
-}
+import { BellIcon, CheckIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 export default function NotificationsPage() {
   const { user } = useAuth()
-  const { get, put, loading } = useApi()
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  useEffect(() => {
-    fetchNotifications()
-  }, [])
-
-  const fetchNotifications = async () => {
-    try {
-      const data = await get<Notification[]>('/api/notifications')
-      setNotifications(Array.isArray(data) ? data : [])
-      setUnreadCount((Array.isArray(data) ? data : []).filter(n => !n.isRead).length)
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error)
-      setNotifications([])
-      setUnreadCount(0)
-    }
-  }
-
-  const markAsRead = async (notificationId: string) => {
-    try {
-      await put(`/api/notifications/${notificationId}`, { isRead: true })
-      setNotifications(notifications.map(n => 
-        n.id === notificationId ? { ...n, isRead: true } : n
-      ))
-      setUnreadCount(unreadCount - 1)
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error)
-    }
-  }
-
-  const markAllAsRead = async () => {
-    try {
-      const unreadNotifications = notifications.filter(n => !n.isRead)
-      await Promise.all(
-        unreadNotifications.map(n => 
-          put(`/api/notifications/${n.id}`, { isRead: true })
-        )
-      )
-      setNotifications(notifications.map(n => ({ ...n, isRead: true })))
-      setUnreadCount(0)
-    } catch (error) {
-      console.error('Failed to mark all notifications as read:', error)
-    }
-  }
+  const { notifications, unreadCount, markAsRead, markAllAsRead, removeNotification, clearAll } = useNotifications()
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'ORDER':
-        return 'bg-blue-100 text-blue-800'
-      case 'STOCK':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'PAYMENT':
-        return 'bg-green-100 text-green-800'
-      case 'SYSTEM':
-        return 'bg-purple-100 text-purple-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+      case 'ORDER': return 'bg-blue-100 text-blue-800'
+      case 'STOCK': return 'bg-yellow-100 text-yellow-800'
+      case 'PAYMENT': return 'bg-green-100 text-green-800'
+      case 'LOGISTICS': return 'bg-purple-100 text-purple-800'
+      case 'WAREHOUSE': return 'bg-orange-100 text-orange-800'
+      case 'SYSTEM': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'ORDER': return '📦'
+      case 'STOCK': return '📊'
+      case 'PAYMENT': return '💰'
+      case 'LOGISTICS': return '🚚'
+      case 'WAREHOUSE': return '🏭'
+      case 'SYSTEM': return '⚙️'
+      default: return '🔔'
     }
   }
 
@@ -91,15 +45,26 @@ export default function NotificationsPage() {
                 Stay updated with important alerts and updates
               </p>
             </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <CheckIcon className="h-5 w-5 mr-2" />
-                Mark All as Read
-              </button>
-            )}
+            <div className="flex space-x-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <CheckIcon className="h-5 w-5 mr-2" />
+                  Mark All as Read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <TrashIcon className="h-5 w-5 mr-2" />
+                  Clear All
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -115,9 +80,7 @@ export default function NotificationsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <BellIcon className={`h-5 w-5 ${
-                      !notification.isRead ? 'text-blue-600' : 'text-gray-400'
-                    }`} />
+                    <span className="text-lg">{getTypeIcon(notification.type)}</span>
                     <h3 className={`text-lg font-medium ${
                       !notification.isRead ? 'text-gray-900' : 'text-gray-600'
                     }`}>
@@ -136,14 +99,24 @@ export default function NotificationsPage() {
                     {formatDateTime(notification.createdAt)}
                   </p>
                 </div>
-                {!notification.isRead && (
+                <div className="flex space-x-2">
+                  {!notification.isRead && (
+                    <button
+                      onClick={() => markAsRead(notification.id)}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Mark as read"
+                    >
+                      <CheckIcon className="h-5 w-5" />
+                    </button>
+                  )}
                   <button
-                    onClick={() => markAsRead(notification.id)}
-                    className="ml-4 text-blue-600 hover:text-blue-800"
+                    onClick={() => removeNotification(notification.id)}
+                    className="text-red-600 hover:text-red-800"
+                    title="Remove notification"
                   >
-                    <CheckIcon className="h-5 w-5" />
+                    <XMarkIcon className="h-5 w-5" />
                   </button>
-                )}
+                </div>
               </div>
             </div>
           ))}

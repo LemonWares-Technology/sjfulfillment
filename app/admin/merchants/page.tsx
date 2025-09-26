@@ -14,9 +14,10 @@ interface Merchant {
   businessName: string
   businessEmail: string
   businessPhone: string
-  businessAddress: string
+  address: string
+  city: string
+  state: string
   onboardingStatus: string
-  subscriptionStatus: string
   createdAt: string
   users: {
     id: string
@@ -24,7 +25,21 @@ interface Merchant {
     lastName: string
     email: string
     role: string
+    isActive: boolean
   }[]
+  subscriptions: {
+    id: string
+    status: string
+    servicePlan: {
+      id: string
+      name: string
+      basePrice: number
+    }
+  }[]
+  _count: {
+    products: number
+    orders: number
+  }
 }
 
 export default function MerchantsPage() {
@@ -42,8 +57,8 @@ export default function MerchantsPage() {
 
   const fetchMerchants = async () => {
     try {
-      const data = await get<Merchant[]>('/api/merchants')
-      setMerchants(Array.isArray(data) ? data : [])
+      const response = await get<{merchants: Merchant[]}>('/api/merchants')
+      setMerchants(response?.merchants || [])
     } catch (error) {
       console.error('Failed to fetch merchants:', error)
       setMerchants([])
@@ -166,7 +181,7 @@ export default function MerchantsPage() {
                             {merchant.businessName}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {merchant.businessAddress}
+                            {merchant.address}, {merchant.city}, {merchant.state}
                           </div>
                         </div>
                       </td>
@@ -187,11 +202,11 @@ export default function MerchantsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          merchant.subscriptionStatus === 'ACTIVE' 
+                          merchant.subscriptions.length > 0 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-red-100 text-red-800'
                         }`}>
-                          {merchant.subscriptionStatus}
+                          {merchant.subscriptions.length > 0 ? 'ACTIVE' : 'NO SUBSCRIPTION'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

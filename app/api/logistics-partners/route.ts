@@ -3,9 +3,10 @@ import { JWTPayload } from '@/app/lib/auth'
 import { createErrorResponse, createResponse, withRole } from '@/app/lib/api-utils'
 import { prisma } from '@/app/lib/prisma'
 import { createLogisticsPartnerSchema } from '@/app/lib/validations'
+import { hashPassword } from '@/app/lib/password'
 
 // GET /api/logistics-partners
-export const GET = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: NextRequest, user: JWTPayload) => {
+export const GET = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (request: NextRequest, user: JWTPayload) => {
   try {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -58,9 +59,32 @@ export const GET = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
       prisma.logisticsPartner.count({ where })
     ])
 
+    // Transform data to match frontend expectations
+    const transformedPartners = partners.map(partner => ({
+      id: partner.id,
+      name: partner.companyName,
+      contactPerson: partner.contactPerson,
+      email: partner.email,
+      phone: partner.phone,
+      address: partner.address,
+      city: partner.city,
+      state: partner.state,
+      country: partner.country,
+      serviceType: partner.serviceType || 'STANDARD',
+      coverageArea: partner.coverageAreas || [],
+      isActive: partner.status === 'APPROVED',
+      createdAt: partner.createdAt.toISOString(),
+      deliveryMetrics: partner.deliveryMetrics.map(metric => ({
+        id: metric.id,
+        averageDeliveryTime: metric.deliveryTime || 0,
+        onTimeDeliveryRate: 85, // Default value, should be calculated
+        totalDeliveries: partner._count.deliveryMetrics
+      }))
+    }))
+
     return createResponse(
       {
-        partners,
+        partners: transformedPartners,
         pagination: {
           page,
           limit,
@@ -80,8 +104,11 @@ export const GET = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
 // POST /api/logistics-partners
 export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user: JWTPayload) => {
   try {
+    console.log('Creating logistics partner for user:', user.role, user.userId)
     const body = await request.json()
+    console.log('Request body:', body)
     const partnerData = createLogisticsPartnerSchema.parse(body)
+    console.log('Parsed partner data:', partnerData)
 
     // Check if partner with same email already exists
     const existingPartner = await prisma.logisticsPartner.findUnique({
@@ -92,20 +119,56 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user: 
       return createErrorResponse('Logistics partner with this email already exists', 400)
     }
 
-    // Create logistics partner
-    const newPartner = await prisma.logisticsPartner.create({
-      data: partnerData,
-      include: {
-        deliveryMetrics: {
-          select: {
-            id: true,
-            deliveryStatus: true,
-            deliveryTime: true
-          },
-          take: 5
-        }
-      }
+    // Check if user with same email already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: partnerData.email }
     })
+
+    if (existingUser) {
+      return createErrorResponse('User with this email already exists', 400)
+    }
+
+    // Hash password
+    const hashedPassword = await hashPassword(partnerData.password)
+
+    // Create logistics partner and user account in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create logistics partner
+      const newPartner = await tx.logisticsPartner.create({
+        data: {
+          ...partnerData,
+          password: undefined // Remove password from partner data
+        },
+        include: {
+          deliveryMetrics: {
+            select: {
+              id: true,
+              deliveryStatus: true,
+              deliveryTime: true
+            },
+            take: 5
+          }
+        }
+      })
+
+      // Create user account for logistics partner
+      const newUser = await tx.user.create({
+        data: {
+          email: partnerData.email,
+          phone: partnerData.phone,
+          firstName: partnerData.contactPerson.split(' ')[0] || partnerData.contactPerson,
+          lastName: partnerData.contactPerson.split(' ').slice(1).join(' ') || '',
+          password: hashedPassword,
+          role: 'WAREHOUSE_STAFF', // Logistics partners are warehouse staff
+          isActive: true,
+          emailVerified: new Date() // Auto-verify for admin-created users
+        }
+      })
+
+      return { newPartner, newUser }
+    })
+
+    const { newPartner } = result
 
     // Log the creation
     await prisma.auditLog.create({

@@ -5,10 +5,12 @@ import DashboardLayout from "@/app/components/dashboard-layout";
 import { useApi } from "@/app/lib/use-api";
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate } from "@/app/lib/utils";
-import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import SearchBar from "@/app/components/search-bar";
 import FilterSelect from "@/app/components/filter-select";
 import ProductModal from "@/app/components/product-modal";
+import BulkOperationsModal from "@/app/components/bulk-operations-modal";
+import ExportModal from "@/app/components/export-modal";
 
 interface Product {
   id: string;
@@ -21,6 +23,7 @@ interface Product {
   dimensions: string;
   isActive: boolean;
   createdAt: string;
+  images?: string[];
   merchant: {
     businessName: string;
   };
@@ -35,6 +38,10 @@ export default function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -80,6 +87,34 @@ export default function ProductsPage() {
     fetchProducts();
   };
 
+  const handleSelectProduct = (productId: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(filteredProducts.map(p => p.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleBulkOperation = () => {
+    if (selectedProducts.length === 0) return;
+    setShowBulkModal(true);
+  };
+
+  const handleBulkComplete = () => {
+    setSelectedProducts([]);
+    setSelectAll(false);
+    fetchProducts();
+  };
+
   const filteredProducts = (products || []).filter(
     (product) => {
       const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -110,13 +145,31 @@ export default function ProductsPage() {
               <h1 className="text-3xl font-bold text-gray-900">Products</h1>
               <p className="mt-2 text-gray-600">Manage your product catalog</p>
             </div>
-            <button
-              onClick={handleAddProduct}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add Product
-            </button>
+            <div className="flex space-x-3">
+              {selectedProducts.length > 0 && (
+                <button
+                  onClick={handleBulkOperation}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <CheckIcon className="h-5 w-5 mr-2" />
+                  Bulk Actions ({selectedProducts.length})
+                </button>
+              )}
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center"
+              >
+                <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+                Export
+              </button>
+              <button
+                onClick={handleAddProduct}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Product
+              </button>
+            </div>
           </div>
         </div>
 
@@ -160,6 +213,14 @@ export default function ProductsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Product
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -186,12 +247,35 @@ export default function ProductsPage() {
                   {filteredProducts.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {product.name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {product.description}
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.includes(product.id)}
+                          onChange={() => handleSelectProduct(product.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {product.images && product.images.length > 0 ? (
+                            <div className="flex-shrink-0 h-12 w-12 mr-4">
+                              <img
+                                className="h-12 w-12 rounded-md object-cover"
+                                src={product.images[0]}
+                                alt={product.name}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex-shrink-0 h-12 w-12 mr-4 bg-gray-200 rounded-md flex items-center justify-center">
+                              <span className="text-gray-400 text-xs">No Image</span>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {product.name}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {product.description}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -254,6 +338,30 @@ export default function ProductsPage() {
           onClose={handleCloseModal}
           product={editingProduct}
           onSave={handleSaveProduct}
+        />
+
+        {/* Bulk Operations Modal */}
+        <BulkOperationsModal
+          isOpen={showBulkModal}
+          onClose={() => setShowBulkModal(false)}
+          operation={{
+            type: 'products',
+            action: '',
+            selectedItems: selectedProducts
+          }}
+          onComplete={handleBulkComplete}
+        />
+
+        {/* Export Modal */}
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          type="products"
+          selectedItems={selectedProducts.length > 0 ? selectedProducts : undefined}
+          filters={{
+            category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
+            status: statusFilter !== 'ALL' ? statusFilter : undefined
+          }}
         />
       </div>
     </DashboardLayout>

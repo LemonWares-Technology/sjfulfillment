@@ -11,8 +11,8 @@ export interface PaymentStatus {
 
 export async function checkMerchantPaymentStatus(merchantId: string): Promise<PaymentStatus> {
   try {
-    // Check if merchant has any active subscription
-    const activeSubscription = await prisma.subscription.findFirst({
+    // Check if merchant has any active service subscriptions (cash-on-delivery model)
+    const activeServiceSubscriptions = await prisma.merchantServiceSubscription.findMany({
       where: {
         merchantId,
         status: 'ACTIVE'
@@ -21,17 +21,18 @@ export async function checkMerchantPaymentStatus(merchantId: string): Promise<Pa
         id: true,
         status: true,
         startDate: true,
-        nextBillingDate: true,
-        totalAmount: true
-      },
-      orderBy: { createdAt: 'desc' }
+        endDate: true,
+        priceAtSubscription: true,
+        quantity: true
+      }
     })
 
-    // Check for pending payments
-    const pendingPayment = await prisma.billingRecord.findFirst({
+    // Check for pending daily billing records
+    const pendingBillingRecords = await prisma.billingRecord.findMany({
       where: {
         merchantId,
-        status: 'PENDING'
+        status: 'PENDING',
+        billingType: 'DAILY_SERVICE_FEE'
       },
       select: {
         amount: true,
@@ -40,32 +41,30 @@ export async function checkMerchantPaymentStatus(merchantId: string): Promise<Pa
       orderBy: { dueDate: 'asc' }
     })
 
-    // Check last successful payment
-    const lastPayment = await prisma.payment.findFirst({
-      where: {
-        merchantId,
-        status: 'SUCCESS'
-      },
-      select: {
-        processedAt: true
-      },
-      orderBy: { processedAt: 'desc' }
-    })
+    // Calculate total accumulated charges
+    const totalAccumulatedCharges = pendingBillingRecords.reduce((sum, record) => {
+      return sum + Number(record.amount)
+    }, 0)
+
+    // Calculate daily charges from active services
+    const dailyCharges = activeServiceSubscriptions.reduce((sum, sub) => {
+      return sum + (Number(sub.priceAtSubscription) * sub.quantity)
+    }, 0)
 
     return {
-      hasActiveSubscription: !!activeSubscription,
-      subscriptionStatus: activeSubscription?.status || null,
-      needsPayment: !activeSubscription || !!pendingPayment,
-      lastPaymentDate: lastPayment?.processedAt || null,
-      nextBillingDate: activeSubscription?.nextBillingDate || pendingPayment?.dueDate || null,
-      amountDue: pendingPayment?.amount ? Number(pendingPayment.amount) : (activeSubscription ? Number(activeSubscription.totalAmount) : 0)
+      hasActiveSubscription: activeServiceSubscriptions.length > 0,
+      subscriptionStatus: activeServiceSubscriptions.length > 0 ? 'ACTIVE' : null,
+      needsPayment: totalAccumulatedCharges > 0, // Needs payment if there are accumulated charges
+      lastPaymentDate: null, // No upfront payments in COD model
+      nextBillingDate: pendingBillingRecords.length > 0 ? pendingBillingRecords[0].dueDate : null,
+      amountDue: totalAccumulatedCharges
     }
   } catch (error) {
     console.error('Error checking payment status:', error)
     return {
       hasActiveSubscription: false,
       subscriptionStatus: null,
-      needsPayment: true,
+      needsPayment: false, // Don't block access in COD model
       lastPaymentDate: null,
       nextBillingDate: null,
       amountDue: 0
@@ -74,11 +73,7 @@ export async function checkMerchantPaymentStatus(merchantId: string): Promise<Pa
 }
 
 export function shouldBlockMerchantAccess(paymentStatus: PaymentStatus): boolean {
-  // Block access if:
-  // 1. No active subscription
-  // 2. Has pending payments
-  // 3. Subscription is not ACTIVE
-  return !paymentStatus.hasActiveSubscription || 
-         paymentStatus.needsPayment || 
-         paymentStatus.subscriptionStatus !== 'ACTIVE'
+  // In cash-on-delivery model, don't block access based on payment status
+  // Merchants can use services and pay when orders are delivered
+  return false
 }

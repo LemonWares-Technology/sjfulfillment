@@ -14,10 +14,10 @@ export const GET = withRole(
   async (
     request: NextRequest,
     user: JWTPayload,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
   ) => {
     try {
-      const merchantId = params.id;
+      const { id: merchantId } = await params;
 
       // Check permissions
       if (user.role === "MERCHANT_ADMIN" && user.merchantId !== merchantId) {
@@ -138,10 +138,10 @@ export const PUT = withRole(
   async (
     request: NextRequest,
     user,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
   ) => {
     try {
-      const merchantId = params.id;
+      const { id: merchantId } = await params;
       const body = await request.json();
       const updateData = updateMerchantSchema.parse(body);
 
@@ -214,10 +214,10 @@ export const DELETE = withRole(
   async (
     request: NextRequest,
     user,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
   ) => {
     try {
-      const merchantId = params.id;
+      const { id: merchantId } = await params;
 
       // Check if merchant exists
       const existingMerchant = await prisma.merchant.findUnique({
