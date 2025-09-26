@@ -81,38 +81,49 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: Ne
     const dailyOrders = user.role === 'MERCHANT_ADMIN' && user.merchantId 
       ? await prisma.$queryRaw`
           SELECT 
-            DATE(created_at) as date,
+            DATE("createdAt") as date,
             COUNT(*) as count,
-            SUM(total_amount) as revenue
+            SUM("totalAmount") as revenue
           FROM orders 
-          WHERE created_at >= ${start} AND created_at <= ${end}
-          AND merchant_id = ${user.merchantId}
-          GROUP BY DATE(created_at)
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          AND "merchantId" = ${user.merchantId}
+          GROUP BY DATE("createdAt")
           ORDER BY date ASC
         `
       : await prisma.$queryRaw`
           SELECT 
-            DATE(created_at) as date,
+            DATE("createdAt") as date,
             COUNT(*) as count,
-            SUM(total_amount) as revenue
+            SUM("totalAmount") as revenue
           FROM orders 
-          WHERE created_at >= ${start} AND created_at <= ${end}
-          GROUP BY DATE(created_at)
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          GROUP BY DATE("createdAt")
           ORDER BY date ASC
         `
 
     // Monthly orders data
-    const monthlyOrders = await prisma.$queryRaw`
-      SELECT 
-        DATE_TRUNC('month', created_at) as month,
-        COUNT(*) as count,
-        SUM(total_amount) as revenue
-      FROM orders 
-      WHERE created_at >= ${start} AND created_at <= ${end}
-      ${user.role === 'MERCHANT_ADMIN' && user.merchantId ? `AND merchant_id = '${user.merchantId}'` : ''}
-      GROUP BY DATE_TRUNC('month', created_at)
-      ORDER BY month ASC
-    `
+    const monthlyOrders = user.role === 'MERCHANT_ADMIN' && user.merchantId
+      ? await prisma.$queryRaw`
+          SELECT 
+            DATE_TRUNC('month', "createdAt") as month,
+            COUNT(*) as count,
+            SUM("totalAmount") as revenue
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          AND "merchantId" = ${user.merchantId}
+          GROUP BY DATE_TRUNC('month', "createdAt")
+          ORDER BY month ASC
+        `
+      : await prisma.$queryRaw`
+          SELECT 
+            DATE_TRUNC('month', "createdAt") as month,
+            COUNT(*) as count,
+            SUM("totalAmount") as revenue
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          GROUP BY DATE_TRUNC('month', "createdAt")
+          ORDER BY month ASC
+        `
 
     // Order status distribution
     const statusDistribution = await prisma.order.groupBy({
@@ -180,22 +191,37 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: Ne
     })
 
     // New customers (first order in period)
-    const newCustomers = await prisma.$queryRaw`
-      SELECT 
-        DATE(created_at) as date,
-        COUNT(DISTINCT customer_email) as count
-      FROM orders 
-      WHERE created_at >= ${start} AND created_at <= ${end}
-      ${user.role === 'MERCHANT_ADMIN' && user.merchantId ? `AND merchant_id = '${user.merchantId}'` : ''}
-      AND customer_email NOT IN (
-        SELECT DISTINCT customer_email 
-        FROM orders 
-        WHERE created_at < ${start}
-        ${user.role === 'MERCHANT_ADMIN' && user.merchantId ? `AND merchant_id = '${user.merchantId}'` : ''}
-      )
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `
+    const newCustomers = user.role === 'MERCHANT_ADMIN' && user.merchantId
+      ? await prisma.$queryRaw`
+          SELECT 
+            DATE("createdAt") as date,
+            COUNT(DISTINCT "customerEmail") as count
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          AND "merchantId" = ${user.merchantId}
+          AND "customerEmail" NOT IN (
+            SELECT DISTINCT "customerEmail" 
+            FROM orders 
+            WHERE "createdAt" < ${start}
+            AND "merchantId" = ${user.merchantId}
+          )
+          GROUP BY DATE("createdAt")
+          ORDER BY date ASC
+        `
+      : await prisma.$queryRaw`
+          SELECT 
+            DATE("createdAt") as date,
+            COUNT(DISTINCT "customerEmail") as count
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          AND "customerEmail" NOT IN (
+            SELECT DISTINCT "customerEmail" 
+            FROM orders 
+            WHERE "createdAt" < ${start}
+          )
+          GROUP BY DATE("createdAt")
+          ORDER BY date ASC
+        `
 
     // Revenue by payment method
     const revenueByPaymentMethod = await prisma.order.groupBy({
@@ -206,28 +232,48 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: Ne
     })
 
     // Daily revenue
-    const dailyRevenue = await prisma.$queryRaw`
-      SELECT 
-        DATE(created_at) as date,
-        SUM(total_amount) as amount
-      FROM orders 
-      WHERE created_at >= ${start} AND created_at <= ${end}
-      ${user.role === 'MERCHANT_ADMIN' && user.merchantId ? `AND merchant_id = '${user.merchantId}'` : ''}
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `
+    const dailyRevenue = user.role === 'MERCHANT_ADMIN' && user.merchantId
+      ? await prisma.$queryRaw`
+          SELECT 
+            DATE("createdAt") as date,
+            SUM("totalAmount") as amount
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          AND "merchantId" = ${user.merchantId}
+          GROUP BY DATE("createdAt")
+          ORDER BY date ASC
+        `
+      : await prisma.$queryRaw`
+          SELECT 
+            DATE("createdAt") as date,
+            SUM("totalAmount") as amount
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          GROUP BY DATE("createdAt")
+          ORDER BY date ASC
+        `
 
     // Monthly revenue
-    const monthlyRevenue = await prisma.$queryRaw`
-      SELECT 
-        DATE_TRUNC('month', created_at) as month,
-        SUM(total_amount) as amount
-      FROM orders 
-      WHERE created_at >= ${start} AND created_at <= ${end}
-      ${user.role === 'MERCHANT_ADMIN' && user.merchantId ? `AND merchant_id = '${user.merchantId}'` : ''}
-      GROUP BY DATE_TRUNC('month', created_at)
-      ORDER BY month ASC
-    `
+    const monthlyRevenue = user.role === 'MERCHANT_ADMIN' && user.merchantId
+      ? await prisma.$queryRaw`
+          SELECT 
+            DATE_TRUNC('month', "createdAt") as month,
+            SUM("totalAmount") as amount
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          AND "merchantId" = ${user.merchantId}
+          GROUP BY DATE_TRUNC('month', "createdAt")
+          ORDER BY month ASC
+        `
+      : await prisma.$queryRaw`
+          SELECT 
+            DATE_TRUNC('month', "createdAt") as month,
+            SUM("totalAmount") as amount
+          FROM orders 
+          WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+          GROUP BY DATE_TRUNC('month', "createdAt")
+          ORDER BY month ASC
+        `
 
     const analyticsData = {
       overview: {

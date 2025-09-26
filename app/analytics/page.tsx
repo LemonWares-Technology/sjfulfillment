@@ -52,8 +52,10 @@ interface DateRange {
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
-  const { get, loading } = useApi()
+  const { get } = useApi()
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
@@ -66,6 +68,7 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
+      setLoading(true)
       const params = new URLSearchParams({
         start: dateRange.start,
         end: dateRange.end
@@ -74,6 +77,9 @@ export default function AnalyticsPage() {
       setAnalytics(data)
     } catch (error) {
       console.error('Failed to fetch analytics:', error)
+      setError('Failed to load analytics data. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -153,13 +159,53 @@ export default function AnalyticsPage() {
     { id: 'revenue', name: 'Revenue', icon: ChartBarIcon }
   ]
 
-  if (!analytics) {
+  if (loading) {
     return (
       <DashboardLayout userRole={user?.role || 'MERCHANT_ADMIN'}>
         <div className="px-4 py-6 sm:px-0">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading analytics...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole={user?.role || 'MERCHANT_ADMIN'}>
+        <div className="px-4 py-6 sm:px-0">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Analytics</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button
+              onClick={fetchAnalytics}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!analytics) {
+    return (
+      <DashboardLayout userRole={user?.role || 'MERCHANT_ADMIN'}>
+        <div className="px-4 py-6 sm:px-0">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mb-4">
+              <ChartBarIcon className="h-6 w-6 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Analytics Data</h3>
+            <p className="text-gray-600">No analytics data available for the selected date range.</p>
           </div>
         </div>
       </DashboardLayout>
