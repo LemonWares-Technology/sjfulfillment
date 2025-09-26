@@ -72,6 +72,18 @@ class CacheManager {
       }
     }
   }
+
+  // Get cache statistics
+  getStats(): { size: number; hits: number; misses: number; hitRate: number; maxSize: number; strategy: string } {
+    return {
+      size: this.cache.size,
+      hits: 0, // Placeholder - would need to track hits/misses
+      misses: 0, // Placeholder - would need to track hits/misses
+      hitRate: 0, // Placeholder - would need to track hits/misses
+      maxSize: 1000, // Placeholder
+      strategy: 'LRU' // Placeholder
+    }
+  }
 }
 
 // Create singleton instance

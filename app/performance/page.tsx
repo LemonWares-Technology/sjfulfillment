@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@/app/lib/auth-context'
+import DashboardLayout from '@/app/components/dashboard-layout'
 import PerformanceDashboard from '@/app/components/performance-dashboard'
 import { useBundleAnalysis, useBundlePerformance } from '@/app/lib/bundle-analyzer'
 import { cacheManager } from '@/app/lib/cache-manager'
@@ -14,6 +16,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 export default function PerformancePage() {
+  const { user } = useAuth()
   const { analysis: bundleAnalysis, loading: bundleLoading } = useBundleAnalysis()
   const bundleMetrics = useBundlePerformance()
   const [cacheStats, setCacheStats] = useState<any>(null)
@@ -82,8 +85,8 @@ export default function PerformancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <DashboardLayout userRole={user?.role || 'SJFS_ADMIN'}>
+      <div className="px-4 py-6 sm:px-0">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Performance Monitoring</h1>
           <p className="mt-2 text-gray-600">
@@ -324,7 +327,7 @@ export default function PerformancePage() {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   )
 }
 
