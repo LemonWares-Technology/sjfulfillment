@@ -107,13 +107,16 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: N
     const validatedData = createApiKeySchema.parse(body)
 
     // Determine target merchant ID
-    let targetMerchantId = user.merchantId
-    if (user.role === 'SJFS_ADMIN' && body.merchantId) {
-      targetMerchantId = body.merchantId
-    }
-
-    if (!targetMerchantId) {
-      return createErrorResponse('Merchant ID is required', 400)
+    let targetMerchantId = null;
+    if (user.role === 'SJFS_ADMIN') {
+      // If merchantId is provided, create for merchant; else, create for admin (platform-wide)
+      targetMerchantId = body.merchantId || null;
+    } else {
+      // For merchant admin, must have merchantId
+      targetMerchantId = user.merchantId;
+      if (!targetMerchantId) {
+        return createErrorResponse('Merchant ID is required', 400);
+      }
     }
 
     // Check if merchant has API service subscription (skip for platform admins)
@@ -136,26 +139,39 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN'], async (request: N
     // Generate API key pair
     const { publicKey, secretKey } = generateApiKeyPair()
 
-    // Create API key
-    const newApiKey = await prisma.apiKey.create({
-      data: {
-        merchantId: targetMerchantId,
+      // Prepare API key data
+      const apiKeyData: any = {
         name: validatedData.name,
         publicKey,
         secretKey,
         permissions: validatedData.permissions,
-        rateLimit: validatedData.rateLimit
-      },
-      select: {
-        id: true,
-        name: true,
-        publicKey: true,
-        secretKey: true,
-        permissions: true,
-        rateLimit: true,
-        createdAt: true
+        rateLimit: validatedData.rateLimit,
+      };
+      // Only set merchantId if present
+      if (targetMerchantId) {
+        apiKeyData.merchantId = targetMerchantId;
       }
-    })
+      // Deep clean: remove any accidental merchant relation field
+      if (apiKeyData.merchant) {
+        delete apiKeyData.merchant;
+      }
+      if (apiKeyData.permissions && apiKeyData.permissions.merchant) {
+        delete apiKeyData.permissions.merchant;
+      }
+
+      // Create API key
+      const newApiKey = await prisma.apiKey.create({
+        data: apiKeyData,
+        select: {
+          id: true,
+          name: true,
+          publicKey: true,
+          secretKey: true,
+          permissions: true,
+          rateLimit: true,
+          createdAt: true,
+        },
+      });
 
     // Log the creation
     await prisma.auditLog.create({

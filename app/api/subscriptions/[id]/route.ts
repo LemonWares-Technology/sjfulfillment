@@ -72,22 +72,28 @@ export const PUT = withRole(['SJFS_ADMIN'], async (request: NextRequest, user, {
   try {
     const { id: subscriptionId } = await params
     const body = await request.json()
-    const updateData = updateSubscriptionSchema.parse(body)
+    const updateData = updateSubscriptionSchema.parse(body);
 
     // Check if subscription exists
     const existingSubscription = await prisma.subscription.findUnique({
       where: { id: subscriptionId },
       select: { id: true, merchantId: true, status: true }
-    })
+    });
 
     if (!existingSubscription) {
-      return createErrorResponse('Subscription not found', 404)
+      return createErrorResponse('Subscription not found', 404);
+    }
+
+    // Only allow admin to set discountPercent
+    const updatePayload: any = { ...updateData };
+    if (typeof updateData.discountPercent !== 'undefined') {
+      updatePayload.discountPercent = updateData.discountPercent;
     }
 
     // Update subscription
     const updatedSubscription = await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: updateData,
+      data: updatePayload,
       include: {
         merchant: {
           select: {
@@ -118,7 +124,7 @@ export const PUT = withRole(['SJFS_ADMIN'], async (request: NextRequest, user, {
           }
         }
       }
-    })
+    });
 
     // Log the change
     await prisma.auditLog.create({
@@ -127,11 +133,11 @@ export const PUT = withRole(['SJFS_ADMIN'], async (request: NextRequest, user, {
         action: 'UPDATE_SUBSCRIPTION',
         entityType: 'subscriptions',
         entityId: subscriptionId,
-        newValues: updateData
+        newValues: updatePayload
       }
-    })
+    });
 
-    return createResponse(updatedSubscription, 200, 'Subscription updated successfully')
+    return createResponse(updatedSubscription, 200, 'Subscription updated successfully');
   } catch (error) {
     console.error('Update subscription error:', error)
     if (error instanceof Error && error.message.includes('validation')) {

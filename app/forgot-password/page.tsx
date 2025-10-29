@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApi } from '@/app/lib/use-api'
+import Image from 'next/image'
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
@@ -39,10 +40,13 @@ export default function ForgotPasswordPage() {
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <div className="flex justify-center mb-6">
-              <img 
+              <Image 
                 src="https://sjfulfillment.com/wp-content/uploads/2020/09/cropped-Main-Logo-white-886x.png"
                 alt="SJF Logo"
-                className="h-16 w-auto object-contain"
+                loading="lazy"
+                className=" object-cover"
+                width={150}
+                height={120}
               />
             </div>
             <div className="mx-auto h-12 w-12 bg-white rounded-full flex items-center justify-center">
@@ -75,10 +79,13 @@ export default function ForgotPasswordPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex justify-center mb-6">
-            <img 
+            <Image
               src="https://sjfulfillment.com/wp-content/uploads/2020/09/cropped-Main-Logo-white-886x.png"
               alt="SJF Logo"
-              className="h-16 w-auto object-contain"
+              loading="lazy"
+              className=" object-cover"
+              width={150}
+              height={120}
             />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-[#f08c17]">

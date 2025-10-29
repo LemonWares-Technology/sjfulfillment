@@ -136,26 +136,35 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) 
     }
 
     // Calculate total amount
-    let totalAmount = Number(servicePlan.basePrice)
+    let totalAmount = Number(servicePlan.basePrice);
 
     // Add addon costs
     for (const addon of subscriptionData.addons) {
       const addonService = await prisma.addonService.findUnique({
         where: { id: addon.addonServiceId },
         select: { id: true, name: true, price: true, pricingType: true, isActive: true }
-      })
+      });
 
       if (!addonService || !addonService.isActive) {
-        return createErrorResponse(`Addon service ${addon.addonServiceId} not found or inactive`, 404)
+        return createErrorResponse(`Addon service ${addon.addonServiceId} not found or inactive`, 404);
       }
 
-      totalAmount += Number(addonService.price) * addon.quantity
+      totalAmount += Number(addonService.price) * addon.quantity;
+    }
+
+    // Apply discount if provided
+    let discountPercent: number = 0;
+    if (typeof subscriptionData.discountPercent !== 'undefined') {
+      discountPercent = Number(subscriptionData.discountPercent);
+      if (discountPercent > 0 && discountPercent <= 100) {
+        totalAmount = totalAmount * (1 - discountPercent / 100);
+      }
     }
 
     // Calculate next billing date
-    const startDate = new Date(subscriptionData.startDate)
-    const nextBillingDate = new Date(startDate)
-    nextBillingDate.setMonth(nextBillingDate.getMonth() + 1)
+    const startDate = new Date(subscriptionData.startDate);
+    const nextBillingDate = new Date(startDate);
+    nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
     // Prepare addon data
     const addonData = await Promise.all(
@@ -163,15 +172,15 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) 
         const addonService = await prisma.addonService.findUnique({
           where: { id: addon.addonServiceId },
           select: { price: true }
-        })
+        });
         return {
           addonServiceId: addon.addonServiceId,
           quantity: addon.quantity,
           price: addon.quantity * Number(addonService?.price || 0),
           startDate
-        }
+        };
       })
-    )
+    );
 
     // Create subscription
     const newSubscription = await prisma.subscription.create({
@@ -182,6 +191,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) 
         endDate: subscriptionData.endDate ? new Date(subscriptionData.endDate) : null,
         nextBillingDate,
         totalAmount,
+        discountPercent: discountPercent > 0 ? discountPercent : undefined,
         addons: {
           create: addonData
         }
@@ -216,7 +226,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) 
           }
         }
       }
-    })
+    });
 
     // Create initial billing record
     await prisma.billingRecord.create({
@@ -228,7 +238,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest, user) 
         amount: totalAmount,
         dueDate: nextBillingDate
       }
-    })
+    });
 
     // Log the creation
     await prisma.auditLog.create({

@@ -6,6 +6,9 @@ import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatCurrency, formatDate, formatDateTime } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+  const { currency: selectedCurrency } = useCurrency();
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { 
   ArrowLeftIcon,
   CheckIcon,
@@ -188,7 +191,7 @@ export default function ReturnDetailsPage() {
                 )}
                 <div>
                   <label className="block text-sm font-medium text-white/70">Refund Amount</label>
-                  <p className="mt-1 text-sm font-semibold text-[#f08c17]">{formatCurrency(returnRequest.approvedAmount || returnRequest.refundAmount || 0)}</p>
+                  <p className="mt-1 text-sm font-semibold text-[#f08c17]">{formatCurrency(returnRequest.approvedAmount || returnRequest.refundAmount || 0, selectedCurrency)}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white/70">Return Reason</label>
@@ -219,7 +222,7 @@ export default function ReturnDetailsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white/70">Order Total</label>
-                  <p className="mt-1 text-sm text-white/90">{formatCurrency(returnRequest.order.totalAmount)}</p>
+                  <p className="mt-1 text-sm text-white/90">{formatCurrency(returnRequest.order.totalAmount, selectedCurrency)}</p>
                 </div>
               </div>
             </div>
@@ -303,7 +306,7 @@ export default function ReturnDetailsPage() {
               <div className="space-y-3">
                 <div className="border-t border-white/20 pt-3 flex justify-between font-medium">
                   <span className="text-white/90">Refund Amount:</span>
-                  <span className="text-[#f08c17]">{formatCurrency(returnRequest.approvedAmount || returnRequest.refundAmount || 0)}</span>
+                  <span className="text-[#f08c17]">{formatCurrency(returnRequest.approvedAmount || returnRequest.refundAmount || 0, selectedCurrency)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-white/70">Restockable:</span>

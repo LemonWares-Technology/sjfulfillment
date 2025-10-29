@@ -5,6 +5,7 @@ import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
 import { useRouter } from 'next/navigation'
 
 interface WarehouseStats {
@@ -18,6 +19,7 @@ export default function WarehouseDashboard() {
   const { user } = useAuth()
   const { get, loading } = useApi()
   const router = useRouter()
+  const { currency: selectedCurrency } = useCurrency();
   const [stats, setStats] = useState<WarehouseStats | null>(null)
 
   useEffect(() => {

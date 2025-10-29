@@ -5,6 +5,7 @@ import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
 import { CreditCardIcon, CalendarIcon } from '@heroicons/react/24/outline'
 
 interface Subscription {
@@ -31,9 +32,16 @@ interface Subscription {
 }
 
 export default function SubscriptionsPage() {
+  const { currency: selectedCurrency } = useCurrency();
   const { user } = useAuth()
-  const { get, loading } = useApi()
+  const { get, request, loading } = useApi()
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editPlanId, setEditPlanId] = useState<string | null>(null)
+  const [editRate, setEditRate] = useState<string>('')
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSuccess, setEditSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     fetchSubscriptions()
@@ -66,6 +74,64 @@ export default function SubscriptionsPage() {
 
   return (
     <DashboardLayout userRole={user?.role || 'MERCHANT_ADMIN'}>
+      {/* Admin-only: Edit Plan Rate Modal */}
+      {user?.role === 'SJFS_ADMIN' && showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold mb-4">Edit Plan Rate</h2>
+            <label className="block mb-2 text-sm font-medium text-gray-700">New Rate (NGN)</label>
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              className="w-full border px-3 py-2 rounded mb-4"
+              value={editRate}
+              onChange={e => setEditRate(e.target.value)}
+              disabled={editLoading}
+            />
+            {editError && <div className="text-red-600 mb-2 text-sm">{editError}</div>}
+            {editSuccess && <div className="text-green-600 mb-2 text-sm">{editSuccess}</div>}
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                onClick={() => { setShowEditModal(false); setEditError(null); setEditSuccess(null); }}
+                disabled={editLoading}
+              >Cancel</button>
+              <button
+                className="px-4 py-2 rounded bg-amber-600 text-white hover:bg-amber-700"
+                disabled={editLoading || !editRate || Number(editRate) <= 0}
+                onClick={async () => {
+                  setEditLoading(true)
+                  setEditError(null)
+                  setEditSuccess(null)
+                  try {
+                    await request('/api/admin/service-plans/update-rate', {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        planId: editPlanId,
+                        newRate: Number(editRate)
+                      }),
+                      headers: {
+                        'Content-Type': 'application/json'
+                      }
+                    })
+                    setEditSuccess('Rate updated successfully')
+                    setTimeout(() => {
+                      setShowEditModal(false)
+                      setEditSuccess(null)
+                      fetchSubscriptions()
+                    }, 1200)
+                  } catch (err: any) {
+                    setEditError(err?.message || 'Failed to update rate')
+                  } finally {
+                    setEditLoading(false)
+                  }
+                }}
+              >{editLoading ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="px-4 py-6 sm:px-0">
         <div className="mb-8">
           <div className="flex justify-between items-center">
@@ -105,6 +171,17 @@ export default function SubscriptionsPage() {
                           {formatCurrency(subscription.totalAmount)}
                         </div>
                         <div className="text-sm text-gray-600">per {subscription.servicePlan.billingCycle}</div>
+                        {/* Admin-only: Edit Rate Button */}
+                        {user?.role === 'SJFS_ADMIN' && (
+                          <button
+                            className="mt-2 px-3 py-1 bg-amber-600 text-white rounded text-xs hover:bg-amber-700"
+                            onClick={() => {
+                              setEditPlanId(subscription.servicePlan.id)
+                              setEditRate(String(subscription.servicePlan.basePrice))
+                              setShowEditModal(true)
+                            }}
+                          >Edit Rate</button>
+                        )}
                       </div>
                     </div>
 

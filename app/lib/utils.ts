@@ -5,20 +5,49 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number | string | undefined | null): string {
+export function formatCurrency(
+  amount: number | string | undefined | null,
+  currency: 'NGN' | 'USD' | 'EUR' = 'NGN'
+): string {
   if (amount === undefined || amount === null || amount === '') {
-    return '₦0.00'
+    switch (currency) {
+      case 'USD': return '$0.00';
+      case 'EUR': return '€0.00';
+      default: return '₦0.00';
+    }
   }
-  
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
+
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (isNaN(numAmount)) {
-    return '₦0.00'
+    switch (currency) {
+      case 'USD': return '$0.00';
+      case 'EUR': return '€0.00';
+      default: return '₦0.00';
+    }
   }
-  
-  return new Intl.NumberFormat('en-NG', {
+
+  let locale = 'en-NG';
+  let symbol = '₦';
+  switch (currency) {
+    case 'USD':
+      locale = 'en-US';
+      symbol = '$';
+      break;
+    case 'EUR':
+      locale = 'de-DE';
+      symbol = '€';
+      break;
+    default:
+      locale = 'en-NG';
+      symbol = '₦';
+  }
+
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'NGN',
-  }).format(numAmount)
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numAmount);
 }
 
 export function formatNumber(count: number | string | undefined | null): string {

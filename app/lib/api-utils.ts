@@ -40,7 +40,7 @@ export function withAuth(
   handler: (request: NextRequest, user: JWTPayload, context?: any) => Promise<NextResponse>
 ) {
   return async (request: NextRequest, context?: any): Promise<NextResponse> => {
-    const user = getCurrentUser(request)
+    const user = await getCurrentUser(request)
     if (!user) {
       return createErrorResponse('Unauthorized', 401)
     }
@@ -53,7 +53,7 @@ export function withRole(
   handler: (request: NextRequest, user: JWTPayload, context?: any) => Promise<NextResponse>
 ) {
   return async (request: NextRequest, context?: any): Promise<NextResponse> => {
-    const user = getCurrentUser(request)
+    const user = await getCurrentUser(request)
     if (!user) {
       return createErrorResponse('Unauthorized', 401)
     }

@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/api-utils";
 import { prisma } from "@/app/lib/prisma";
 import { createReturnSchema } from "@/app/lib/validations";
+import { OrderStatus } from "@/app/generated/prisma";
 
 // GET /api/returns
 export const GET = withRole(
@@ -146,7 +147,8 @@ export const POST = withRole(
         requestedBy: user.userId,
         status: 'PENDING'
       })
-      
+
+      // Create the return
       const newReturn = await prisma.return.create({
         data: {
           ...returnData,
@@ -178,7 +180,47 @@ export const POST = withRole(
           }
         },
       });
-      
+
+      // Update the order status to match the return status
+      await prisma.order.update({
+        where: { id: newReturn.orderId },
+        data: { status: newReturn.status as OrderStatus },
+      });
+
+      // Send notification and email to merchant
+      try {
+        // Find merchant admin user
+        const merchantUser = await prisma.user.findFirst({
+          where: {
+            merchantId: newReturn.order.merchant.id,
+            role: 'MERCHANT_ADMIN',
+            isActive: true
+          },
+          select: { id: true, email: true, firstName: true, lastName: true }
+        });
+        if (merchantUser) {
+          // Notification
+          const { notificationService } = await import('@/app/lib/notification-service');
+          await notificationService.createNotification({
+            recipientId: merchantUser.id,
+            title: `Return Request Submitted for Order ${newReturn.order.orderNumber}`,
+            message: `A return request for order ${newReturn.order.orderNumber} has been submitted and is pending admin review.`,
+            type: 'RETURN_REQUESTED',
+            priority: 'HIGH',
+            metadata: { orderId: newReturn.order.id, returnId: newReturn.id }
+          });
+          // Email
+          const { sendEmail } = await import('@/app/lib/email');
+          await sendEmail({
+            to: merchantUser.email,
+            subject: `Return Request Submitted for Order ${newReturn.order.orderNumber}`,
+            html: `<h2>Return Request Submitted</h2><p>A return request for order <b>${newReturn.order.orderNumber}</b> has been submitted and is pending admin review.</p>`
+          });
+        }
+      } catch (notifyError) {
+        console.error('Error sending merchant notification/email:', notifyError);
+      }
+
       console.log('Return created successfully:', newReturn.id)
 
       // Log the creation

@@ -34,6 +34,18 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   {
+    name: 'Admin Plan Management',
+    href: '/admin/plans',
+    icon: CreditCardIcon,
+    roles: ['SJFS_ADMIN']
+  },
+  {
+    name: 'Merchant Discounts',
+    href: '/admin/discounts',
+    icon: ArrowPathIcon,
+    roles: ['SJFS_ADMIN']
+  },
+  {
     name: 'Dashboard',
     href: '/dashboard',
     icon: HomeIcon,

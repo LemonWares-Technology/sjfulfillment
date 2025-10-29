@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
 
     const { password: _, ...userWithoutPassword } = user;
 
-    return createResponse(
+    // Set token cookie in response
+    const response = createResponse(
       {
         user: userWithoutPassword,
         token,
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest) {
       200,
       "Login successful"
     );
+    response.cookies.set('token', token, {
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false,
+      secure: false,
+      maxAge: 60 * 60 * 24 // 1 day
+    });
+    return response;
   } catch (error) {
     console.error("Login error:", error);
     return createErrorResponse("Login failed", 500);

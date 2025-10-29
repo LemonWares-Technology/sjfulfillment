@@ -193,10 +193,9 @@ export const DELETE = withRole(['SJFS_ADMIN'], async (request: NextRequest, user
       return createErrorResponse('Cannot delete warehouse with active stock or orders', 400)
     }
 
-    // Soft delete by deactivating
-    await prisma.warehouseLocation.update({
-      where: { id: warehouseId },
-      data: { isActive: false }
+    // Hard delete: remove warehouse from DB
+    await prisma.warehouseLocation.delete({
+      where: { id: warehouseId }
     })
 
     // Log the change
@@ -209,7 +208,7 @@ export const DELETE = withRole(['SJFS_ADMIN'], async (request: NextRequest, user
       }
     })
 
-    return createResponse(null, 200, 'Warehouse deactivated successfully')
+    return createResponse(null, 200, 'Warehouse deleted successfully')
   } catch (error) {
     console.error('Delete warehouse error:', error)
     return createErrorResponse('Failed to delete warehouse', 500)

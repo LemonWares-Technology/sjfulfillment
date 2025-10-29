@@ -1,9 +1,13 @@
 'use client'
 
+// Prevent static prerendering, force dynamic rendering for client hooks
+export const dynamic = 'force-dynamic';
+
 import { useAuth } from '@/app/lib/auth-context'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
 import { CreditCardIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { initializePaystackPayment, generatePaymentReference, formatAmountForPaystack } from '@/app/lib/paystack'
 
@@ -35,6 +39,7 @@ interface PaymentStatus {
 export default function PaymentRequiredPage() {
   const { user } = useAuth()
   const { get, post, loading } = useApi()
+  const { currency: selectedCurrency } = useCurrency();
   const [servicePlans, setServicePlans] = useState<ServicePlan[]>([])
   const [addonServices, setAddonServices] = useState<AddonService[]>([])
   const [selectedPlan, setSelectedPlan] = useState<string>('')

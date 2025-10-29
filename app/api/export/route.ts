@@ -336,29 +336,29 @@ async function generatePDFFile(data: any[], filename: string, type: string): Pro
   const pageHeight = doc.internal.pageSize.getHeight()
   
   // HEADER - Brand Banner
-  doc.setFillColor(10, 10, 10) // black header for white logo
-  doc.rect(0, 0, pageWidth, 35, 'F')
-
-  // Add logo instead of text
+  doc.setFillColor(10, 10, 10)
+  doc.rect(0, 0, pageWidth, 45, 'F')
+  // Add logo instead of text, properly centered and sized
   try {
+    const logoWidth = 60
+    const logoHeight = 24
+    const logoY = 12
+    const logoX = (pageWidth - logoWidth) / 2
     if (logoBase64) {
-      doc.addImage(logoBase64, 'PNG', pageWidth / 2 - 20, 8, 40, 18)
+      doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight)
     } else {
-      // fallback to previous remote url if base64 not available
-      doc.addImage('https://sjfulfillment.com/wp-content/uploads/2020/09/cropped-Main-Logo-white-886x.png', 'PNG', pageWidth / 2 - 20, 8, 40, 18)
+      doc.addImage('https://sjfulfillment.com/wp-content/uploads/2020/09/cropped-Main-Logo-white-886x.png', 'PNG', logoX, logoY, logoWidth, logoHeight)
     }
   } catch (error) {
-    // Fallback to text if logo fails to load
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('SJFulfillment', pageWidth / 2, 18, { align: 'center' })
+    doc.text('SJFulfillment', pageWidth / 2, 22, { align: 'center' })
   }
-  
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`${type.charAt(0).toUpperCase() + type.slice(1)} Export Report`, pageWidth / 2, 32, { align: 'center' })
+  doc.setFontSize(15)
+  doc.setFont('helvetica', 'bold')
+  doc.text(`${type.charAt(0).toUpperCase() + type.slice(1)} Export Report`, pageWidth / 2, 42, { align: 'center' })
   
   // Report metadata
   doc.setTextColor(0, 0, 0)

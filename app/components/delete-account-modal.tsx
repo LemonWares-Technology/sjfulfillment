@@ -116,7 +116,8 @@ export default function DeleteAccountModal({
                     {step === 1 && (
                       <div className="mt-4">
                         <p className="text-sm text-gray-500 mb-4">
-                          This action will permanently delete your merchant account and all associated staff accounts. This cannot be undone.
+                          <strong className="text-red-600">Warning:</strong> This action will permanently delete your merchant account <span className="font-bold">and all associated staff accounts, orders, products, warehouses, billing records, API keys, webhooks, integrations, and audit logs</span>. <br />
+                          <span className="font-bold">All data will be erased and cannot be recovered.</span> This cannot be undone.
                         </p>
                         <div className="mb-4">
                           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
@@ -192,7 +193,9 @@ export default function DeleteAccountModal({
                         </div>
                         <div className="bg-red-50 border border-red-200 rounded-md p-3">
                           <p className="text-xs text-red-800">
-                            <strong>Warning:</strong> All your data, products, orders, and staff accounts will be permanently deleted. This action cannot be reversed.
+                            <strong>Final Warning:</strong> <br />
+                            <span className="font-bold">All your data, including products, orders, staff accounts, warehouses, billing records, API keys, webhooks, integrations, and audit logs will be permanently deleted.</span> <br />
+                            This action cannot be reversed. You will lose access to all platform features and data.
                           </p>
                         </div>
                       </div>

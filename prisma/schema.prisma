@@ -1,3 +1,31 @@
+model DeletedUser {
+  id           String   @id @default(cuid())
+  originalId   String   // ID of the deleted user
+  email        String
+  phone        String?
+  firstName    String
+  lastName     String
+  role         UserRole
+  merchantId   String?
+  deletedBy    String?  // Admin/user who performed deletion
+  deletedAt    DateTime @default(now())
+  reason       String?
+}
+model OrderAddon {
+  id                String           @id @default(cuid())
+  orderId           String
+  addonServiceId    String
+  quantity          Int              @default(1)
+  price             Decimal          @db.Decimal(10, 2)
+  createdAt         DateTime         @default(now())
+  order             Order            @relation(fields: [orderId], references: [id])
+  addonService      AddonService     @relation(fields: [addonServiceId], references: [id])
+  RefundRequest     RefundRequest?   @relation("OrderAddons", fields: [refundRequestId], references: [id])
+  refundRequestId   String?
+  DeliveryMetrics   DeliveryMetrics? @relation("AddonServiceOrderAddons", fields: [deliveryMetricsId], references: [id])
+  deliveryMetricsId String?
+}
+
 generator client {
   provider = "prisma-client-js"
   output   = "../app/generated/prisma"
@@ -84,6 +112,7 @@ model AddonService {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   subscriptionAddons SubscriptionAddon[]
+  OrderAddon         OrderAddon[]
 
   @@map("addon_services")
 }
@@ -114,6 +143,7 @@ model Subscription {
   endDate         DateTime?
   nextBillingDate DateTime
   totalAmount     Decimal             @db.Decimal(10, 2)
+  discountPercent Decimal?            @db.Decimal(5, 2) // Admin-settable discount in percent
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   billingRecords  BillingRecord[]
@@ -151,8 +181,10 @@ model Merchant {
   country                      String                        @default("Nigeria")
   cacNumber                    String?
   taxId                        String?
-  isActive                     Boolean                       @default(true)
+  isActive                     Boolean                       @default(false)
+  verificationToken            String?                       @unique
   onboardingStatus             OnboardingStatus              @default(PENDING)
+    discount                    Decimal?                      @db.Decimal(5, 2) // Top-level discount for designated merchants
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
   lastPlanUpdate               DateTime?
@@ -171,7 +203,7 @@ model Merchant {
 
 model Product {
   id            String         @id @default(cuid())
-  sku           String         @unique
+  sku           String
   name          String
   description   String?
   category      String?
@@ -192,6 +224,7 @@ model Product {
   serialNumbers SerialNumber[]
   stockItems    StockItem[]
 
+  @@unique([sku, merchantId])
   @@map("products")
 }
 
@@ -284,6 +317,7 @@ model Order {
   warehouse        WarehouseLocation?   @relation(fields: [warehouseId], references: [id])
   returns          Return[]
   refundRequests   RefundRequest[]
+  OrderAddon       OrderAddon[]
 
   @@map("orders")
 }
@@ -336,22 +370,22 @@ model Return {
 }
 
 model RefundRequest {
-  id              String            @id @default(cuid())
+  id              String       @id @default(cuid())
   orderId         String
   requestedBy     String
   reason          RefundReason
-  description     String?
-  requestedAmount Decimal           @db.Decimal(10, 2)
-  status          RefundStatus      @default(PENDING)
-  approvedAmount  Decimal?          @db.Decimal(10, 2)
+  orderAddons     OrderAddon[] @relation("OrderAddons")
+  requestedAmount Decimal      @db.Decimal(10, 2)
+  status          RefundStatus @default(PENDING)
+  approvedAmount  Decimal?     @db.Decimal(10, 2)
   processedBy     String?
   processedAt     DateTime?
   rejectionReason String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  order           Order             @relation(fields: [orderId], references: [id])
-  requestedByUser User              @relation(fields: [requestedBy], references: [id])
-  processedByUser User?             @relation("RefundProcessedBy", fields: [processedBy], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  order           Order        @relation(fields: [orderId], references: [id])
+  requestedByUser User         @relation(fields: [requestedBy], references: [id])
+  processedByUser User?        @relation("RefundProcessedBy", fields: [processedBy], references: [id])
 
   @@map("refund_requests")
 }
@@ -396,7 +430,6 @@ model BillingRecord {
   @@map("billing_records")
 }
 
-
 model UserSession {
   id        String   @id @default(cuid())
   userId    String
@@ -433,6 +466,7 @@ model DeliveryMetrics {
   deliveryStatus     String
   notes              String?
   createdAt          DateTime         @default(now())
+  orderAddons        OrderAddon[]     @relation("AddonServiceOrderAddons")
   updatedAt          DateTime         @updatedAt
   logisticsPartner   LogisticsPartner @relation(fields: [logisticsPartnerId], references: [id])
 
@@ -499,71 +533,71 @@ model AuditLog {
 }
 
 model ApiKey {
-  id          String   @id @default(cuid())
-  merchantId  String
+  id          String    @id @default(cuid())
+  merchantId  String?
   name        String
-  publicKey   String   @unique
-  secretKey   String   @unique
-  permissions Json     // Scoped permissions
-  isActive    Boolean  @default(true)
+  publicKey   String    @unique
+  secretKey   String    @unique
+  permissions Json // Scoped permissions
+  isActive    Boolean   @default(true)
   lastUsed    DateTime?
-  usageCount  Int      @default(0)
-  rateLimit   Int      @default(1000) // Requests per hour
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  merchant    Merchant @relation(fields: [merchantId], references: [id])
+  usageCount  Int       @default(0)
+  rateLimit   Int       @default(1000) // Requests per hour
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  merchant    Merchant? @relation(fields: [merchantId], references: [id])
   apiLogs     ApiLog[]
 
   @@map("api_keys")
 }
 
 model ApiLog {
-  id          String   @id @default(cuid())
-  apiKeyId    String
-  endpoint    String
-  method      String
-  statusCode  Int
-  responseTime Int?    // in milliseconds
-  ipAddress   String?
-  userAgent   String?
-  requestBody Json?
+  id           String   @id @default(cuid())
+  apiKeyId     String
+  endpoint     String
+  method       String
+  statusCode   Int
+  responseTime Int? // in milliseconds
+  ipAddress    String?
+  userAgent    String?
+  requestBody  Json?
   responseBody Json?
-  error       String?
-  createdAt   DateTime @default(now())
-  apiKey      ApiKey   @relation(fields: [apiKeyId], references: [id])
+  error        String?
+  createdAt    DateTime @default(now())
+  apiKey       ApiKey   @relation(fields: [apiKeyId], references: [id])
 
   @@map("api_logs")
 }
 
 model Webhook {
-  id          String   @id @default(cuid())
-  merchantId  String
-  name        String
-  url         String
-  events      String[] // Array of events to listen for
-  secret      String   // Webhook secret for verification
-  isActive    Boolean  @default(true)
+  id            String       @id @default(cuid())
+  merchantId    String
+  name          String
+  url           String
+  events        String[] // Array of events to listen for
+  secret        String // Webhook secret for verification
+  isActive      Boolean      @default(true)
   lastTriggered DateTime?
-  successCount Int     @default(0)
-  failureCount Int     @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  merchant    Merchant @relation(fields: [merchantId], references: [id])
-  webhookLogs WebhookLog[]
+  successCount  Int          @default(0)
+  failureCount  Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  merchant      Merchant     @relation(fields: [merchantId], references: [id])
+  webhookLogs   WebhookLog[]
 
   @@map("webhooks")
 }
 
 model WebhookLog {
-  id          String   @id @default(cuid())
-  webhookId   String
-  event       String
-  statusCode  Int?
-  response    String?
-  error       String?
-  attempts    Int      @default(1)
-  createdAt   DateTime @default(now())
-  webhook     Webhook  @relation(fields: [webhookId], references: [id])
+  id         String   @id @default(cuid())
+  webhookId  String
+  event      String
+  statusCode Int?
+  response   String?
+  error      String?
+  attempts   Int      @default(1)
+  createdAt  DateTime @default(now())
+  webhook    Webhook  @relation(fields: [webhookId], references: [id])
 
   @@map("webhook_logs")
 }
@@ -689,6 +723,7 @@ enum NotificationType {
   ORDER_UPDATED
   ORDER_DELIVERED
   ORDER_CANCELLED
+  ORDER_RETURNED
   STOCK_LOW
   STOCK_OUT
   PRODUCT_CREATED
@@ -733,41 +768,41 @@ enum SplitStatus {
 }
 
 model Notification {
-  id          String           @id @default(cuid())
-  title       String
-  message     String
-  type        NotificationType
-  priority    NotificationPriority @default(MEDIUM)
-  recipientId String?
+  id            String               @id @default(cuid())
+  title         String
+  message       String
+  type          NotificationType
+  priority      NotificationPriority @default(MEDIUM)
+  recipientId   String?
   recipientRole UserRole?
-  isRead      Boolean          @default(false)
-  isGlobal    Boolean          @default(false)
-  metadata    Json?
-  createdAt   DateTime         @default(now())
-  readAt      DateTime?
-  
+  isRead        Boolean              @default(false)
+  isGlobal      Boolean              @default(false)
+  metadata      Json?
+  createdAt     DateTime             @default(now())
+  readAt        DateTime?
+
   // Relations
-  recipient   User?            @relation(fields: [recipientId], references: [id])
-  
+  recipient User? @relation(fields: [recipientId], references: [id])
+
   @@map("notifications")
 }
 
 model CallLog {
-  id              String     @id @default(cuid())
-  callSid         String     @unique
-  to              String
-  from            String
-  type            CallType
-  status          CallStatus @default(INITIATED)
-  customerName    String
-  customerRole    String?
+  id               String            @id @default(cuid())
+  callSid          String            @unique
+  to               String
+  from             String
+  type             CallType
+  status           CallStatus        @default(INITIATED)
+  customerName     String
+  customerRole     String?
   notificationType NotificationType?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  endedAt         DateTime?
-  duration        Int?
-  recordingUrl    String?
-  metadata        Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  endedAt          DateTime?
+  duration         Int?
+  recordingUrl     String?
+  metadata         Json?
 
   @@map("call_logs")
 }

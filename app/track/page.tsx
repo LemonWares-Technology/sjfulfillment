@@ -4,8 +4,12 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid'
+import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { formatCurrency, formatDate, formatDateTime } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+ 
+// Import useContext or pass selectedCurrency as prop if using context/provider
 
 interface OrderDetails {
   orderNumber: string
@@ -43,6 +47,14 @@ interface OrderDetails {
 }
 
 function TrackOrderContent() {
+  const { currency: selectedCurrency } = useCurrency();
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const handleCopy = (value: string, label: string) => {
+    navigator.clipboard.writeText(value)
+    setCopied(label)
+    setTimeout(() => setCopied(null), 1200)
+  }
   const searchParams = useSearchParams()
   const router = useRouter()
   const orderId = searchParams?.get('orderId') || null
@@ -52,7 +64,8 @@ function TrackOrderContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState('')
-  const [searchType, setSearchType] = useState<'orderId' | 'trackingNumber'>('orderId')
+  // Only allow tracking number search
+  const [searchType] = useState<'trackingNumber'>('trackingNumber')
 
   useEffect(() => {
     if (orderId || trackingNumber) {
@@ -90,14 +103,9 @@ function TrackOrderContent() {
     e.preventDefault()
     if (!searchInput.trim()) return
 
-    // Update URL with search params
+    // Update URL with tracking number param only
     const params = new URLSearchParams()
-    if (searchType === 'orderId') {
-      params.set('orderId', searchInput.trim())
-    } else {
-      params.set('trackingNumber', searchInput.trim())
-    }
-    
+    params.set('trackingNumber', searchInput.trim())
     router.push(`/track?${params.toString()}`)
   }
 
@@ -130,7 +138,7 @@ function TrackOrderContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+  <div className="min-h-screen bg-black flex items-center justify-center px-2">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#f08c17] mx-auto mb-4"></div>
           <p className="text-white/90">Loading order details...</p>
@@ -142,10 +150,10 @@ function TrackOrderContent() {
   // Show search form if no order is found or no params provided
   if (!order && !loading) {
     return (
-      <div className="min-h-screen bg-black">
+  <div className="min-h-screen bg-black px-2">
         {/* Header */}
         <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
-          <div className="max-w-6xl mx-auto px-4 py-6">
+          <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
             <div className="flex items-center justify-center">
               <Image
                 src={process.env.NEXT_PUBLIC_LOGO_URL || 'https://sjfulfillment.com/wp-content/uploads/2020/09/cropped-Main-Logo-white-886x.png'}
@@ -158,12 +166,12 @@ function TrackOrderContent() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center p-4 py-12">
-          <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-8 max-w-2xl w-full border border-white/20">
+        <div className="flex items-center justify-center p-2 py-8 sm:py-12">
+          <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-4 sm:p-8 max-w-2xl w-full border border-white/20">
             <div className="text-center mb-8">
               <MagnifyingGlassIcon className="h-16 w-16 text-[#f08c17] mx-auto mb-4" />
               <h1 className="text-3xl font-bold text-white mb-2">Track Your Order</h1>
-              <p className="text-white/70">Enter your order number or tracking ID to check your order status</p>
+              <p className="text-white/70">Enter your tracking number to check your order status</p>
             </div>
 
             {error && (
@@ -174,43 +182,15 @@ function TrackOrderContent() {
 
             <form onSubmit={handleSearch} className="space-y-6">
               <div>
-                <label className="block text-white/70 text-sm font-medium mb-3">Search By</label>
-                <div className="flex gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setSearchType('orderId')}
-                    className={`flex-1 px-4 py-3 rounded-[5px] font-medium transition-all ${
-                      searchType === 'orderId'
-                        ? 'bg-[#f08c17] text-white shadow-md'
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}
-                  >
-                    Order Number
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSearchType('trackingNumber')}
-                    className={`flex-1 px-4 py-3 rounded-[5px] font-medium transition-all ${
-                      searchType === 'trackingNumber'
-                        ? 'bg-[#f08c17] text-white shadow-md'
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}
-                  >
-                    Tracking ID
-                  </button>
-                </div>
-              </div>
-
-              <div>
                 <label htmlFor="searchInput" className="block text-white/70 text-sm font-medium mb-2">
-                  {searchType === 'orderId' ? 'Order Number' : 'Tracking ID'}
+                  Tracking Number
                 </label>
                 <input
                   type="text"
                   id="searchInput"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder={searchType === 'orderId' ? 'e.g., ORD-1234567890' : 'e.g., TRACK-ABC123'}
+                  placeholder="e.g., TRK-123456-ABCDEF"
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white rounded-[5px] focus:outline-none focus:ring-2 focus:ring-[#f08c17] placeholder-white/40"
                   required
                 />
@@ -218,7 +198,7 @@ function TrackOrderContent() {
 
               <button
                 type="submit"
-                disabled={!searchInput.trim()}
+                disabled={searchInput.trim().length === 0}
                 className="w-full bg-gradient-to-r from-[#f08c17] to-orange-400 text-white px-6 py-3 rounded-[5px] font-medium hover:from-orange-500 hover:to-orange-400 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <MagnifyingGlassIcon className="h-5 w-5" />
@@ -242,14 +222,14 @@ function TrackOrderContent() {
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-md rounded-lg p-8 max-w-md w-full text-center">
+  <div className="min-h-screen bg-black flex items-center justify-center p-2">
+        <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-8 max-w-md w-full text-center">
           <div className="text-red-500 text-5xl mb-4">⚠️</div>
           <h1 className="text-2xl font-bold text-white mb-4">Order Not Found</h1>
           <p className="text-white/70 mb-6">{error || 'Unable to find order details'}</p>
           <a
             href="/track"
-            className="inline-block bg-gradient-to-r from-[#f08c17] to-orange-400 text-white px-6 py-3 rounded-lg font-medium hover:from-orange-500 hover:to-orange-400 transition-all"
+            className="inline-block bg-gradient-to-r from-[#f08c17] to-orange-400 text-white px-6 py-3 rounded-[5px] font-medium hover:from-orange-500 hover:to-orange-400 transition-all"
           >
             Try Again
           </a>
@@ -259,11 +239,11 @@ function TrackOrderContent() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+  <div className="min-h-screen bg-black px-2">
       {/* Header */}
       <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
               <Image
                 src={process.env.NEXT_PUBLIC_LOGO_URL || 'https://sjfulfillment.com/wp-content/uploads/2020/09/cropped-Main-Logo-white-886x.png'}
@@ -274,9 +254,25 @@ function TrackOrderContent() {
               />
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-white/70 text-sm">Order Number</p>
-                <p className="text-white font-mono text-lg">{order.orderNumber}</p>
+              <div className="text-right flex items-center gap-2">
+                <div>
+                  <p className="text-white/70 text-sm">Order Number</p>
+                  <p className="text-white font-mono text-lg flex items-center gap-1">
+                    {order.orderNumber}
+                    <button
+                      type="button"
+                      aria-label="Copy Order Number"
+                      className="ml-2 p-1 rounded hover:bg-white/20 transition"
+                      onClick={() => handleCopy(order.orderNumber, 'orderNumber')}
+                    >
+                      {copied === 'orderNumber' ? (
+                        <CheckIcon className="h-4 w-4 text-[#f08c17]" />
+                      ) : (
+                        <ClipboardIcon className="h-4 w-4 text-white/70" />
+                      )}
+                    </button>
+                  </p>
+                </div>
               </div>
               <a
                 href="/track"
@@ -289,9 +285,9 @@ function TrackOrderContent() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+  <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
         {/* Status Card */}
-        <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 mb-6 border border-white/20">
+  <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-4 sm:p-6 mb-6 border border-white/20">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-white">Order Status</h2>
             <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
@@ -300,13 +296,29 @@ function TrackOrderContent() {
           </div>
           
           {order.trackingNumber && (
-            <div className="bg-white/5 rounded-lg p-4 mb-4">
-              <p className="text-white/70 text-sm mb-1">Tracking Number</p>
-              <p className="text-white font-mono text-lg">{order.trackingNumber}</p>
+            <div className="bg-white/5 rounded-[5px] p-4 mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-white/70 text-sm mb-1">Tracking Number</p>
+                <p className="text-white font-mono text-lg flex items-center gap-1">
+                  {order.trackingNumber}
+                  <button
+                    type="button"
+                    aria-label="Copy Tracking Number"
+                    className="ml-2 p-1 rounded hover:bg-white/20 transition"
+                    onClick={() => handleCopy(order.trackingNumber!, 'trackingNumber')}
+                  >
+                    {copied === 'trackingNumber' ? (
+                      <CheckIcon className="h-4 w-4 text-[#f08c17]" />
+                    ) : (
+                      <ClipboardIcon className="h-4 w-4 text-white/70" />
+                    )}
+                  </button>
+                </p>
+              </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
             <div>
               <p className="text-white/70 text-sm mb-1">Order Date</p>
               <p className="text-white">{formatDate(order.createdAt)}</p>
@@ -322,9 +334,9 @@ function TrackOrderContent() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
           {/* Customer Information */}
-          <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 border border-white/20">
+          <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-4 sm:p-6 border border-white/20">
             <h3 className="text-xl font-bold text-white mb-4">Customer Information</h3>
             <div className="space-y-3">
               <div>
@@ -347,7 +359,7 @@ function TrackOrderContent() {
           </div>
 
           {/* Merchant Information */}
-          <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 border border-white/20">
+          <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-4 sm:p-6 border border-white/20">
             <h3 className="text-xl font-bold text-white mb-4">Merchant Information</h3>
             <div className="space-y-3">
               <div>
@@ -377,10 +389,10 @@ function TrackOrderContent() {
         </div>
 
         {/* Order Items */}
-        <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 mb-6 border border-white/20">
+        <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-4 sm:p-6 mb-6 border border-white/20">
           <h3 className="text-xl font-bold text-white mb-4">Order Items</h3>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[400px] text-sm">
               <thead>
                 <tr className="border-b border-white/20">
                   <th className="text-left text-white/70 text-sm font-medium pb-3">Product</th>
@@ -396,23 +408,23 @@ function TrackOrderContent() {
                     <td className="py-3 text-white">{item.productName}</td>
                     <td className="py-3 text-white/70 text-sm">{item.sku}</td>
                     <td className="py-3 text-white text-right">{item.quantity}</td>
-                    <td className="py-3 text-white text-right">{formatCurrency(item.unitPrice)}</td>
-                    <td className="py-3 text-white text-right font-medium">{formatCurrency(item.totalPrice)}</td>
+                    <td className="py-3 text-white text-right">{formatCurrency(item.unitPrice, selectedCurrency)}</td>
+                    <td className="py-3 text-white text-right font-medium">{formatCurrency(item.totalPrice, selectedCurrency)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="border-t-2 border-white/20">
                 <tr>
                   <td colSpan={4} className="py-3 text-white/70 text-right">Subtotal:</td>
-                  <td className="py-3 text-white text-right font-medium">{formatCurrency(order.orderValue)}</td>
+                  <td className="py-3 text-white text-right font-medium">{formatCurrency(order.orderValue, selectedCurrency)}</td>
                 </tr>
                 <tr>
                   <td colSpan={4} className="py-3 text-white/70 text-right">Delivery Fee:</td>
-                  <td className="py-3 text-white text-right font-medium">{formatCurrency(order.deliveryFee)}</td>
+                  <td className="py-3 text-white text-right font-medium">{formatCurrency(order.deliveryFee, selectedCurrency)}</td>
                 </tr>
                 <tr>
                   <td colSpan={4} className="py-3 text-white text-right text-lg font-bold">Total:</td>
-                  <td className="py-3 text-[#f08c17] text-right text-lg font-bold">{formatCurrency(order.totalAmount)}</td>
+                  <td className="py-3 text-[#f08c17] text-right text-lg font-bold">{formatCurrency(order.totalAmount, selectedCurrency)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -421,7 +433,7 @@ function TrackOrderContent() {
 
         {/* Status History */}
         {order.statusHistory && order.statusHistory.length > 0 && (
-          <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 border border-white/20">
+          <div className="bg-white/10 backdrop-blur-md rounded-[5px] p-4 sm:p-6 border border-white/20">
             <h3 className="text-xl font-bold text-white mb-4">Order History</h3>
             <div className="space-y-4">
               {order.statusHistory.map((history, index) => (
@@ -449,8 +461,8 @@ function TrackOrderContent() {
       </div>
 
       {/* Footer */}
-      <div className="bg-white/10 backdrop-blur-md border-t border-white/20 mt-12">
-        <div className="max-w-6xl mx-auto px-4 py-6 text-center">
+      <div className="bg-white/10 backdrop-blur-md border-t border-white/20 mt-8 sm:mt-12">
+        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 text-center">
           <p className="text-white/70 text-sm">
             Need help? Contact us at <a href="mailto:support@sjfulfillment.com" className="text-[#f08c17] hover:underline">support@sjfulfillment.com</a>
           </p>

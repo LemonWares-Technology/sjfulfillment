@@ -6,6 +6,7 @@ import PaymentGate from '@/app/components/payment-gate'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
 import { useRouter } from 'next/navigation'
 
 interface StaffStats {
@@ -19,6 +20,7 @@ export default function StaffDashboard() {
   const { user } = useAuth()
   const { get, loading } = useApi()
   const router = useRouter()
+  const { currency: selectedCurrency } = useCurrency();
   const [stats, setStats] = useState<StaffStats | null>(null)
 
   useEffect(() => {

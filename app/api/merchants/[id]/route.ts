@@ -210,6 +210,19 @@ export const PUT = withRole(
         delete updateData.onboardingStatus;
       }
 
+      // If a discount was provided in the request, apply it to all ACTIVE subscriptions for this merchant
+      if (typeof updateData.discount !== 'undefined') {
+        const discountVal = Number(updateData.discount);
+        if (!isNaN(discountVal)) {
+          await prisma.subscription.updateMany({
+            where: { merchantId: merchantId, status: 'ACTIVE' },
+            data: { discountPercent: discountVal },
+          });
+        }
+        // Remove discount from merchant update payload as Merchant model doesn't have this field
+        delete updateData.discount;
+      }
+
       // Update merchant
       const updatedMerchant = await prisma.merchant.update({
         where: { id: merchantId },

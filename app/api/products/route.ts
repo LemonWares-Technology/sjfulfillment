@@ -105,13 +105,16 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
     const body = await request.json()
     
     // Set merchant ID
-    let merchantId: string | undefined
+    let merchantId: string | null
     if (user.role === 'SJFS_ADMIN') {
-      // For admins, merchantId is optional - they can create their own products
-      merchantId = body.merchantId || undefined
+      // For admins, merchantId is now required
+      merchantId = body.merchantId ?? null
+      if (!merchantId) {
+        return createErrorResponse('Merchant ID is required. Admins must select a merchant to create a product.', 400)
+      }
     } else {
       // For non-admin users, use their merchantId (required)
-      merchantId = user.merchantId
+      merchantId = user.merchantId ?? null
       if (!merchantId) {
         return createErrorResponse('Merchant ID is required', 400)
       }
@@ -147,24 +150,34 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
       })
     }
 
-    // Check if SKU already exists
-    const existingProduct = await prisma.product.findUnique({
-      where: { sku }
-    })
-
+    // Production-ready SKU uniqueness check: block only if a non-deleted product with the same SKU exists for the same merchant (or admin)
+    // If you add soft-delete (isDeleted), this will future-proof the logic
+    let existingProduct = await prisma.product.findFirst({
+      where: {
+        sku,
+        merchantId: merchantId ?? null,
+        // Uncomment the next line if you add soft-delete in the future:
+        // isDeleted: false
+      }
+    });
     if (existingProduct) {
-      return createErrorResponse('Product with this SKU already exists', 400)
+      return createErrorResponse('A product with this SKU already exists for this merchant or admin.', 400);
     }
 
     // Prepare product data with auto-generated SKU
     const productData = {
       ...body,
       sku,
-      merchantId
+      ...(merchantId ? { merchantId } : {})
     }
 
     // Extract quantity from body (not in validation schema)
-    const { quantity, ...productDataWithoutQuantity } = productData
+    let { quantity, ...productDataWithoutQuantity } = productData
+
+    // If no dimensions provided, default to 10x10x10
+    if (!productDataWithoutQuantity.dimensions) {
+      productDataWithoutQuantity.dimensions = { length: 10, width: 10, height: 10 }
+    }
 
     // Validate the data
     const validatedData = createProductSchema.parse(productDataWithoutQuantity)
@@ -196,25 +209,28 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
     const initialQuantity = quantity || 0
     
     // Get any active warehouse (prefer merchant's warehouse, fallback to any)
-    let warehouse = await prisma.merchant.findUnique({
-      where: { id: merchantId },
-      include: {
-        warehouses: {
-          where: { isActive: true },
-          take: 1
+    let warehouse: any = null;
+    if (merchantId) {
+      warehouse = await prisma.merchant.findUnique({
+        where: { id: merchantId },
+        include: {
+          warehouses: {
+            where: { isActive: true },
+            take: 1
+          }
         }
-      }
-    })
+      });
+    }
 
-    // If merchant has no warehouses, get any active warehouse
-    if (!warehouse?.warehouses[0]) {
+    let warehouseId: string | null = null;
+    if (warehouse && warehouse.warehouses && warehouse.warehouses[0]) {
+      warehouseId = warehouse.warehouses[0].id;
+    } else {
       let anyWarehouse = await prisma.warehouseLocation.findFirst({
         where: { isActive: true }
-      })
-      
-      // If no warehouse exists, create a default one
+      });
       if (!anyWarehouse) {
-        console.log('No active warehouse found, creating default warehouse...')
+        console.log('No active warehouse found, creating default warehouse...');
         anyWarehouse = await prisma.warehouseLocation.create({
           data: {
             name: 'Main Warehouse',
@@ -226,25 +242,36 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
             isActive: true,
             capacity: 10000
           }
-        })
-        console.log('Created default warehouse:', anyWarehouse.name)
+        });
+        console.log('Created default warehouse:', anyWarehouse.name);
       }
-      
       if (anyWarehouse) {
-        const stockItem = await prisma.stockItem.create({
-          data: {
-            productId: newProduct.id,
-            warehouseId: anyWarehouse.id,
-            quantity: initialQuantity,
-            availableQuantity: initialQuantity,
-            reservedQuantity: 0,
-            reorderLevel: 10, // Default reorder level
-            maxStockLevel: 100 // Default max stock level
-          }
-        })
+        warehouseId = anyWarehouse.id;
+      }
+    }
 
-        // Create initial stock movement if quantity > 0
-        if (initialQuantity > 0) {
+    let stockItem = null;
+    if (warehouseId) {
+      stockItem = await prisma.stockItem.create({
+        data: {
+          productId: newProduct.id,
+          warehouseId: warehouseId,
+          quantity: initialQuantity,
+          availableQuantity: initialQuantity,
+          reservedQuantity: 0,
+          reorderLevel: 10, // Default reorder level
+          maxStockLevel: 100 // Default max stock level
+        }
+      });
+    }
+
+    // Respond to client immediately after product and stock item creation
+    const response = createResponse(newProduct, 201, 'Product created successfully');
+
+    // Run audit log and stock movement creation in the background
+    Promise.all([
+      (async () => {
+        if (stockItem && initialQuantity > 0) {
           await prisma.stockMovement.create({
             data: {
               stockItemId: stockItem.id,
@@ -254,52 +281,25 @@ export const POST = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF'],
               performedBy: user.userId,
               notes: 'Initial stock entry'
             }
-          })
+          });
         }
-      }
-    } else {
-      const stockItem = await prisma.stockItem.create({
+      })(),
+      prisma.auditLog.create({
         data: {
-          productId: newProduct.id,
-          warehouseId: warehouse.warehouses[0].id,
-          quantity: initialQuantity,
-          availableQuantity: initialQuantity,
-          reservedQuantity: 0,
-          reorderLevel: 10, // Default reorder level
-          maxStockLevel: 100 // Default max stock level
+          user: {
+            connect: { id: user.userId }
+          },
+          action: 'CREATE_PRODUCT',
+          entityType: 'products',
+          entityId: newProduct.id,
+          newValues: validatedData
         }
       })
+    ]).catch((err) => {
+      console.error('Background product creation tasks failed:', err);
+    });
 
-      // Create initial stock movement if quantity > 0
-      if (initialQuantity > 0) {
-        await prisma.stockMovement.create({
-          data: {
-            stockItemId: stockItem.id,
-            movementType: 'STOCK_IN',
-            quantity: initialQuantity,
-            referenceType: 'INITIAL_STOCK',
-            performedBy: user.userId,
-            notes: 'Initial stock entry'
-          }
-        })
-      }
-    }
-
-
-    // Log the creation
-    await prisma.auditLog.create({
-      data: {
-        user: {
-          connect: { id: user.userId }
-        },
-        action: 'CREATE_PRODUCT',
-        entityType: 'products',
-        entityId: newProduct.id,
-        newValues: validatedData
-      }
-    })
-
-    return createResponse(newProduct, 201, 'Product created successfully')
+    return response;
   } catch (error) {
     console.error('Create product error:', error)
     if (error instanceof Error && error.message.includes('validation')) {

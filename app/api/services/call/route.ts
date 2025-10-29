@@ -4,28 +4,14 @@ import { prisma } from "@/app/lib/prisma";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 
-const vonageAppId = process.env.VONAGE_APPLICATION_ID;
-const vonagePrivateKeyB64 = process.env.VONAGE_PRIVATE_KEY; // base64-encoded PEM
-const vonageFromNumber = process.env.VONAGE_VIRTUAL_NUMBER;
 
-if (!vonageAppId || !vonagePrivateKeyB64 || !vonageFromNumber) {
-  throw new Error("Missing Vonage configuration (VONAGE_APPLICATION_ID, VONAGE_PRIVATE_KEY, VONAGE_VIRTUAL_NUMBER)");
-}
+// Sonetel API credentials from environment variables
+const sonetelApiKey = process.env.SONETEL_API_KEY;
+const sonetelAccountId = process.env.SONETEL_ACCOUNT_ID;
+const sonetelFromNumber = process.env.SONETEL_FROM_NUMBER;
 
-function getVonageJwt() {
-  const now = Math.floor(Date.now() / 1000);
-  const privateKey = Buffer.from(vonagePrivateKeyB64!, "base64").toString("utf8");
-  const token = jwt.sign(
-    {
-      application_id: vonageAppId,
-      iat: now,
-      exp: now + 60 * 5,
-      jti: `${now}-${Math.random().toString(36).slice(2)}`,
-    },
-    privateKey,
-    { algorithm: "RS256" }
-  );
-  return token;
+if (!sonetelApiKey || !sonetelAccountId || !sonetelFromNumber) {
+  throw new Error("Missing Sonetel configuration (SONETEL_API_KEY, SONETEL_ACCOUNT_ID, SONETEL_FROM_NUMBER)");
 }
 
 export async function POST(req: NextRequest) {
@@ -49,6 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+
     // Format the phone number to E.164 format (assuming NG default)
     const toRaw = String(to);
     let formattedNumber = toRaw.replace(/\D/g, "");
@@ -62,66 +49,74 @@ export async function POST(req: NextRequest) {
       formattedNumber = toRaw;
     }
 
-    // Log call settings (no trial redirect in Vonage)
+
+    // Log call settings
     const isProd = process.env.NODE_ENV === "production";
-    console.log("Call settings:", {
+    console.log("Sonetel Call settings:", {
       originalNumber: formattedNumber,
       isProd,
       nodeEnv: process.env.NODE_ENV,
     });
 
     if (type === "audio") {
-      // Determine base URL for callbacks (prefer explicit public URL env)
-      const baseEnv =
-        process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
-      // Fallback to request origin if env not provided
-      const requestOrigin = `${req.nextUrl.protocol}//${req.headers.get("host")}`;
-      const baseUrl = baseEnv || requestOrigin;
-
-      const safeRole = customerRole ? String(customerRole) : "";
-
-      const eventUrl = new URL("/api/services/call/status", baseUrl).toString();
-
-      const ncco = [
-        {
-          action: "talk",
-          text: `Hello, this is a call from SJ Fulfillment regarding your order. ${customerName}${
-            safeRole ? ` ${safeRole}` : ""
-          } would like to speak with you.`,
-          language: "en-GB",
-          style: 0,
-        },
-        {
-          action: "input",
-          type: ["dtmf"],
-          dtmf: { timeOut: 3, maxDigits: 1 },
-        },
-      ];
-
+      // Sonetel API endpoint for call-back
+  // Ensure no double slashes in endpoint
+  const sonetelUrl = "https://api.sonetel.com/make-calls/call/call-back";
+      // Prepare payload as per Sonetel documentation
+      // Validate phone numbers for Sonetel API (must be E.164 format)
+      const formatE164 = (num: string) => num.startsWith("+") ? num : `+${num.replace(/\D/g, "")}`;
       const payload = {
-        to: [{ type: "phone", number: formattedNumber }],
-        from: { type: "phone", number: vonageFromNumber },
-        ncco,
-        event_url: [eventUrl],
-      } as any;
+        call1: formatE164(String(sonetelFromNumber)),
+        call2: formatE164(formattedNumber),
+        show1: formatE164(String(sonetelFromNumber)),
+        show2: formatE164(formattedNumber),
+      };
 
-      const token = getVonageJwt();
-      const resp = await axios.post("https://api.nexmo.com/v1/calls", payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 15000,
+      // Helper to mask token for logs
+      const mask = (s: string | undefined) => (s ? `${s.slice(0, 8)}...` : 'missing');
+
+      console.log('Attempting Sonetel call', {
+        url: sonetelUrl,
+        payload,
+        tokenPreview: mask(sonetelApiKey),
       });
 
-      const call = resp.data;
+      let call: any = null;
+      let lastError: any = null;
+      try {
+        const resp = await axios.post(sonetelUrl, payload, {
+          headers: {
+            Authorization: `Bearer ${sonetelApiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        });
+        call = resp.data;
+        console.log('Sonetel response', { url: sonetelUrl, status: resp.status, dataPreview: call && (call.id || call) });
+      } catch (err: any) {
+        lastError = err;
+        const status = err?.response?.status;
+        const respData = err?.response?.data;
+        console.warn(`Sonetel request failed`, { status, respData });
+      }
+
+      if (!call) {
+        // No successful response from Sonetel; surface useful debug info
+        console.error('Sonetel endpoint failed. Last error:', {
+          message: lastError?.message,
+          status: lastError?.response?.status,
+          data: lastError?.response?.data,
+        });
+        const message = lastError?.response?.data?.message || lastError?.response?.data || lastError?.message || 'Sonetel request failed';
+        return NextResponse.json({ success: false, message }, { status: 502 });
+      }
 
       // Save the call record
       await prisma.callLog.create({
         data: {
-          callSid: call.uuid || call.conversation_uuid || `${Date.now()}`,
+          callSid: call.id || `${Date.now()}`,
           to: formattedNumber,
-          from: vonageFromNumber!,
+          from: String(sonetelFromNumber),
           type: "VOICE",
           status: "INITIATED",
           customerName,
@@ -130,11 +125,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return NextResponse.json({ success: true, callSid: call.uuid });
+      return NextResponse.json({ success: true, callSid: call.id });
     } else if (type === "video") {
-      // Not implemented for Vonage in this iteration
+      // Sonetel does not support video calls via API
       return NextResponse.json(
-        { success: false, message: "Video calls are not yet supported with Vonage in this app. Use audio calls for now." },
+        { success: false, message: "Video calls are not supported with Sonetel API. Use audio calls for now." },
         { status: 501 }
       );
     }

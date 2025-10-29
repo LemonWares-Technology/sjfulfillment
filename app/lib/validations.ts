@@ -61,6 +61,8 @@ export const updateMerchantSchema = z.object({
   onboardingStatus: z
     .enum(["PENDING", "APPROVED", "REJECTED", "SUSPENDED"])
     .optional(),
+  // Admin-provided discount value for merchant (applied to active subscriptions)
+  discount: z.number().min(0).max(100).optional(),
 });
 
 // Product schemas
@@ -68,9 +70,9 @@ export const createProductSchema = z.object({
   sku: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
-  category: z.string().optional(),
-  brand: z.string().optional(),
-  weight: z.number().positive().optional(),
+  category: z.string().min(1),
+  brand: z.string().min(1),
+  weight: z.number().positive(),
   dimensions: z
     .object({
       length: z.number().positive(),
@@ -78,7 +80,7 @@ export const createProductSchema = z.object({
       height: z.number().positive(),
     })
     .optional(),
-  unitPrice: z.number().positive().optional(),
+  unitPrice: z.number().positive(),
   hasExpiry: z.boolean().default(false),
   isPerishable: z.boolean().default(false),
   barcodeData: z.string().optional(),
@@ -123,6 +125,7 @@ export const createOrderSchema = z.object({
   deliveryFee: z.number().min(0).default(0),
   paymentMethod: z.enum(["COD", "PREPAID", "WALLET"]).default("COD"),
   notes: z.string().optional(),
+  warehouseId: z.string().optional(),
   items: z
     .array(
       z.object({
@@ -132,6 +135,14 @@ export const createOrderSchema = z.object({
       })
     )
     .min(1),
+  addons: z
+    .array(
+      z.object({
+        addonServiceId: z.string(),
+        quantity: z.number().int().positive().default(1),
+      })
+    )
+    .default([]),
 });
 
 export const updateOrderStatusSchema = z.object({
@@ -150,6 +161,7 @@ export const updateOrderStatusSchema = z.object({
   notes: z.string().optional(),
   trackingNumber: z.string().optional(),
   expectedDelivery: z.string().datetime().optional(),
+  orderNumber: z.string().min(1).optional(),
 });
 
 // Warehouse schemas
@@ -193,6 +205,7 @@ export const createSubscriptionSchema = z.object({
   servicePlanId: z.string(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime().optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
   addons: z
     .array(
       z.object({
@@ -206,6 +219,7 @@ export const createSubscriptionSchema = z.object({
 export const updateSubscriptionSchema = z.object({
   status: z.enum(["ACTIVE", "SUSPENDED", "CANCELLED", "EXPIRED"]).optional(),
   endDate: z.string().datetime().optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
 });
 
 // Logistics Partner schemas

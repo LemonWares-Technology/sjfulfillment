@@ -120,8 +120,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { user: userData, token: authToken } = data.data
 
     setUser(userData)
-    setToken(authToken)
-    localStorage.setItem('token', authToken)
+  setToken(authToken)
+  localStorage.setItem('token', authToken)
+  // Set token as cookie for backend authentication
+  // Use Secure only if running on https
+  const isSecure = window.location.protocol === 'https:';
+  let cookieString = `token=${authToken}; path=/; SameSite=Lax`;
+  if (isSecure) cookieString += '; Secure';
+  document.cookie = cookieString;
 
     // Redirect based on user role
     switch (userData.role) {

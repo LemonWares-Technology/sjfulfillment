@@ -5,7 +5,10 @@ import DashboardLayout from "@/app/components/dashboard-layout";
 import { useApi } from "@/app/lib/use-api";
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDate } from "@/app/lib/utils";
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, ArrowDownTrayIcon, DocumentArrowUpIcon } from "@heroicons/react/24/outline";
+import ConfirmDeleteModal from "@/app/components/confirm-delete-modal";
 import SearchBar from "@/app/components/search-bar";
 import FilterSelect from "@/app/components/filter-select";
 import ProductModal from "@/app/components/product-modal";
@@ -49,6 +52,7 @@ interface Product {
 }
 
 export default function ProductsPage() {
+  const { currency: selectedCurrency } = useCurrency();
   const { user } = useAuth();
   const { get, delete: deleteProduct, loading } = useApi();
   const [products, setProducts] = useState<Product[]>([]);
@@ -67,6 +71,8 @@ export default function ProductsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage] = useState(10);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -120,16 +126,22 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDelete = async (productId: string) => {
-    if (confirm("Are you sure you want to delete this product?")) {
-      try {
-        await deleteProduct(`/api/products/${productId}`);
-        // Refresh the products list to ensure UI is updated
-        fetchProducts(currentPage);
-      } catch (error) {
-        console.error("Failed to delete product:", error);
-        alert("Failed to delete product. Please try again.");
-      }
+
+  const handleDelete = (product: Product) => {
+    setDeletingProduct(product);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingProduct) return;
+    try {
+      await deleteProduct(`/api/products/${deletingProduct.id}`);
+      setShowDeleteModal(false);
+      setDeletingProduct(null);
+      fetchProducts(currentPage);
+    } catch (error) {
+      console.error("Failed to delete product:", error);
+      // Optionally show a toast or error message here
     }
   };
 
@@ -217,12 +229,12 @@ export default function ProductsPage() {
     <DashboardLayout userRole={user?.role || "MERCHANT_ADMIN"}>
       <div className="px-4 py-6 sm:px-0">
         <div className="mb-8">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-white">Products</h1>
               <p className="mt-2 text-white">Manage your product catalog</p>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-end items-center sm:items-end">
               <ServiceGateGroup 
                 serviceName="Inventory Management" 
                 buttonLabel="Subscribe to access Products API"
@@ -230,7 +242,7 @@ export default function ProductsPage() {
                 {selectedProducts.length > 0 && (
                   <button
                     onClick={handleBulkOperation}
-                    className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white px-4 py-2 rounded-[5px] flex items-center"
+                    className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
                   >
                     <CheckIcon className="h-5 w-5 mr-2" />
                     Bulk Actions ({selectedProducts.length})
@@ -238,14 +250,14 @@ export default function ProductsPage() {
                 )}
                 <button
                   onClick={() => setShowBulkUpload(true)}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-[5px] flex items-center"
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
                 >
                   <DocumentArrowUpIcon className="h-5 w-5 mr-2" />
                   Bulk Upload
                 </button>
                 <button
                   onClick={handleAddProduct}
-                  className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white px-4 py-2 rounded-[5px] flex items-center"
+                  className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
                 >
                   <PlusIcon className="h-5 w-5 mr-2" />
                   Add Product
@@ -253,7 +265,7 @@ export default function ProductsPage() {
               </ServiceGateGroup>
               <button
                 onClick={() => fetchProducts(1)}
-                className="border-2 border-blue-500 text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-[5px] flex items-center"
+                className="border-2 border-blue-500 text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
               >
                 <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -262,7 +274,7 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={() => setShowExportModal(true)}
-                className="border-2 border-amber-500 text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-[5px] flex items-center"
+                className="border-2 border-amber-500 text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
               >
                 <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
                 Export
@@ -390,7 +402,7 @@ export default function ProductsPage() {
                         {product.sku}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(product.unitPrice)}
+                        {formatCurrency(product.unitPrice, selectedCurrency)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {product.category}
@@ -420,7 +432,7 @@ export default function ProductsPage() {
                             <PencilIcon className="h-4 w-4 text-white" />
                           </button>
                           <button
-                            onClick={() => handleDelete(product.id)}
+                            onClick={() => handleDelete(product)}
                             className="text-white"
                           >
                             <TrashIcon className="h-4 w-4" />
@@ -459,6 +471,18 @@ export default function ProductsPage() {
           onClose={handleCloseModal}
           product={editingProduct}
           onSave={handleSaveProduct}
+        />
+
+        {/* Confirm Delete Modal */}
+        <ConfirmDeleteModal
+          isOpen={showDeleteModal}
+          onClose={() => { setShowDeleteModal(false); setDeletingProduct(null); }}
+          title="Delete Product"
+          description={`Are you sure you want to delete the product "${deletingProduct?.name}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          requireTextConfirm={false}
+          onConfirm={handleConfirmDelete}
         />
 
         {/* Bulk Operations Modal */}

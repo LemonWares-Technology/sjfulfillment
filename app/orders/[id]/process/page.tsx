@@ -134,13 +134,9 @@ export default function OrderProcessPage() {
     }
   }
 
-  const getNextStatuses = (currentStatus: string) => {
-    const statusIndex = ORDER_STATUSES.findIndex(s => s.value === currentStatus)
-    if (statusIndex === -1) return ORDER_STATUSES
-
-    // Allow moving to next status or backwards for corrections
-    const nextStatuses = ORDER_STATUSES.slice(statusIndex)
-    return nextStatuses
+  // Allow any status transition, not just next statuses
+  const getNextStatuses = (_currentStatus: string) => {
+    return ORDER_STATUSES;
   }
 
   // Check access permissions
@@ -196,6 +192,19 @@ export default function OrderProcessPage() {
               <p className="mt-2 text-white">
                 Order #{order.orderNumber} - {order.customerName}
               </p>
+              {order.trackingNumber && (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-green-600 font-semibold">Tracking Number:</span>
+                  <span className="font-mono bg-green-100 text-green-900 px-2 py-1 rounded">{order.trackingNumber}</span>
+                  <button
+                    type="button"
+                    className="ml-2 px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                    onClick={() => navigator.clipboard.writeText(order.trackingNumber!)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
             </div>
             <button
               onClick={() => router.push('/orders')}

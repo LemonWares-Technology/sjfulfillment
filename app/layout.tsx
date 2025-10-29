@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Red_Hat_Display } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./lib/auth-context";
+import { CurrencyProvider } from "./lib/currency-context";
 import { NotificationProvider } from "./lib/notification-context";
 import { WebSocketProvider } from "./lib/websocket-context";
 import { Toaster } from "react-hot-toast";
@@ -33,17 +34,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Import the network offline modal
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const NetworkOfflineModal = require('./components/network-offline-modal').default
   return (
     <html lang="en">
       <body className={`${redHatDisplay.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <NotificationProvider>
-            <WebSocketProvider>
-              {children}
-              <Toaster position="top-right" />
-            </WebSocketProvider>
-          </NotificationProvider>
-        </AuthProvider>
+        <CurrencyProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <WebSocketProvider>
+                {/* Full-screen network offline modal overlay */}
+                <NetworkOfflineModal />
+                {children}
+                <Toaster position="top-right" />
+              </WebSocketProvider>
+            </NotificationProvider>
+          </AuthProvider>
+        </CurrencyProvider>
       </body>
     </html>
   );

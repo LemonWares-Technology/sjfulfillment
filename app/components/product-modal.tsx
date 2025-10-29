@@ -120,7 +120,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
         brand: '',
         hasExpiry: false,
         isPerishable: false,
-        quantity: undefined
+        quantity: 1 // Default quantity to 1 for new products
       })
     }
   }, [product])
@@ -180,30 +180,35 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
+    // Prepare form data with proper quantity handling
+    const submitData: any = {
+      ...formData,
+      quantity: formData.quantity !== undefined ? parseInt(formData.quantity.toString()) : 0
+    }
+
+    // Include merchantId for admin users if they selected one (optional for admins)
+    if (user?.role === 'SJFS_ADMIN' && selectedMerchantId) {
+      submitData.merchantId = selectedMerchantId
+    }
+
+    // Optimistic UI: add product to list immediately
+    if (!product?.id) {
+      onSave(); // Add to list before API call
+    }
+
     try {
-      // Prepare form data with proper quantity handling
-      const submitData: any = {
-        ...formData,
-        quantity: formData.quantity !== undefined ? parseInt(formData.quantity.toString()) : 0
-      }
-      
-      // Include merchantId for admin users if they selected one (optional for admins)
-      if (user?.role === 'SJFS_ADMIN' && selectedMerchantId) {
-        submitData.merchantId = selectedMerchantId
-      }
-      
       console.log('Submitting product data:', submitData)
-      
       if (product?.id) {
         await put(`/api/products/${product.id}`, submitData)
       } else {
         await post('/api/products', submitData)
       }
-      onSave()
+      // If successful, close modal
       onClose()
     } catch (error) {
       console.error('Failed to save product:', error)
+      // Optionally show a toast or remove product from list if API fails
     }
   }
 
@@ -211,33 +216,27 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+      <div className="bg-white rounded-[5px] shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-medium text-gray-900">
               {product?.id ? 'Edit Product' : 'Add New Product'}
             </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <XMarkIcon className="h-6 w-6" />
-            </button>
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit}>
             {/* Merchant Selector for Admin Users */}
             {user?.role === 'SJFS_ADMIN' && !product?.id && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-[5px] p-4 mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Merchant (Optional)
+                  Select Merchant <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={selectedMerchantId}
                   onChange={(e) => setSelectedMerchantId(e.target.value)}
+                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value="">-- Create as Admin Product --</option>
+                  <option value="">-- Select Merchant --</option>
                   {merchants.map((merchant) => (
                     <option key={merchant.id} value={merchant.id}>
                       {merchant.businessName}
@@ -245,16 +244,15 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-600">
-                  Leave unselected to create your own admin product, or select a merchant to create a product for them.
+                  You must select a merchant to create a product for them.
                 </p>
               </div>
             )}
-
-            {/* Basic Product Information */}
+            {/* ...existing code for form fields, image upload, etc... */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Name *
+                  Product Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -266,12 +264,13 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Unit Price (₦)
+                  Unit Price (₦) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
+                  required
                   value={formData.unitPrice || ''}
                   onChange={(e) => setFormData({...formData, unitPrice: e.target.value ? parseFloat(e.target.value) : undefined})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -280,13 +279,14 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stock Quantity
+                  Stock Quantity <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
-                  min="0"
+                  min="1"
+                  required
                   value={formData.quantity !== undefined ? formData.quantity : ''}
-                  onChange={(e) => setFormData({...formData, quantity: e.target.value ? parseInt(e.target.value) : 0})}
+                  onChange={(e) => setFormData({...formData, quantity: e.target.value ? parseInt(e.target.value) : 1})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
                   placeholder="Enter quantity"
                 />
@@ -308,10 +308,11 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category
+                  Category <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.category}
+                  required
                   onChange={(e) => setFormData({...formData, category: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
@@ -329,10 +330,11 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Brand
+                  Brand <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={formData.brand}
                   onChange={(e) => setFormData({...formData, brand: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -343,12 +345,13 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Weight (kg)
+                  Weight (kg) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
+                  required
                   value={formData.weight || ''}
                   onChange={(e) => setFormData({...formData, weight: e.target.value ? parseFloat(e.target.value) : undefined})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -375,14 +378,12 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
                         setFormData({...formData, dimensions: value})
                       }
                     } else {
-                      setFormData({...formData, dimensions: value || undefined})
-                    }
+                      setFormData({...formData, dimensions: value || undefined})}
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
             </div>
-
 
             <div className="space-y-2">
               <div className="flex items-center">
@@ -419,7 +420,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }: Produ
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Product Images
               </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+              <div className="border-2 border-dashed border-gray-300 rounded-[5px] p-6">
                 <input
                   type="file"
                   multiple

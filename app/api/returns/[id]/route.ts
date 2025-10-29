@@ -77,11 +77,11 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
       return createErrorResponse('Return request ID is required', 400)
     }
 
-    const body = await request.json()
-    const { status, approvedAmount, rejectionReason } = body
+    const body = await request.json();
+    const { status, approvedAmount, rejectionReason, restockQuantity } = body;
 
     if (!status || !['APPROVED', 'REJECTED', 'PROCESSED'].includes(status)) {
-      return createErrorResponse('Valid status is required', 400)
+      return createErrorResponse('Valid status is required', 400);
     }
 
     // Check if return request exists
@@ -90,14 +90,16 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
       include: {
         order: {
           select: {
-            merchantId: true
+            merchantId: true,
+            id: true,
+            warehouseId: true
           }
         }
       }
-    })
+    });
 
     if (!returnRequest) {
-      return createErrorResponse('Return request not found', 404)
+      return createErrorResponse('Return request not found', 404);
     }
 
     // Update the return request
@@ -105,14 +107,53 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
       status,
       processedBy: user.userId,
       processedAt: new Date()
-    }
+    };
 
     if (status === 'APPROVED' && approvedAmount) {
-      updateData.approvedAmount = parseFloat(approvedAmount)
+      updateData.approvedAmount = parseFloat(approvedAmount);
     }
 
     if (status === 'REJECTED' && rejectionReason) {
-      updateData.rejectionReason = rejectionReason
+      updateData.rejectionReason = rejectionReason;
+    }
+
+    // If approved, restock product
+    if (status === 'APPROVED') {
+      // Find all order items for this order
+      const orderItems = await prisma.orderItem.findMany({
+        where: { orderId: returnRequest.order.id },
+      });
+      // For each product, add back the quantity to stock
+      for (const item of orderItems) {
+        // Find stock item for product and warehouse
+        const stockItem = await prisma.stockItem.findFirst({
+          where: {
+            productId: item.productId,
+            warehouseId: returnRequest.order.warehouseId || undefined
+          }
+        });
+        if (stockItem) {
+          await prisma.stockItem.update({
+            where: { id: stockItem.id },
+            data: {
+              quantity: stockItem.quantity + item.quantity,
+              availableQuantity: stockItem.availableQuantity + item.quantity
+            }
+          });
+          // Log stock movement
+          await prisma.stockMovement.create({
+            data: {
+              stockItemId: stockItem.id,
+              movementType: 'STOCK_IN',
+              quantity: item.quantity,
+              referenceType: 'Return',
+              referenceId: id,
+              reason: 'Return approved',
+              performedBy: user.userId
+            }
+          });
+        }
+      }
     }
 
     const updatedReturn = await prisma.return.update({
@@ -152,7 +193,7 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
           }
         }
       }
-    })
+    });
 
     // Create audit log
     await prisma.auditLog.create({
@@ -164,7 +205,7 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
         oldValues: { status: returnRequest.status },
         newValues: { status, approvedAmount, rejectionReason }
       }
-    })
+    });
 
     // Create notification for requester on approval/rejection
     try {
@@ -177,14 +218,23 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF'], async (request: N
             type: status === 'APPROVED' ? 'RETURN_APPROVED' : 'RETURN_REJECTED',
             isRead: false
           }
-        })
+        });
+          // Send email to requester
+          if (updatedReturn.requestedByUser?.email) {
+            const { sendEmail } = await import('@/app/lib/email');
+            await sendEmail({
+              to: updatedReturn.requestedByUser.email,
+              subject: `Return ${status === 'APPROVED' ? 'Approved' : 'Rejected'} for Order ${updatedReturn.order.orderNumber}`,
+              html: `<h2>Return ${status === 'APPROVED' ? 'Approved' : 'Rejected'}</h2><p>Your return request for order <b>${updatedReturn.order.orderNumber}</b> has been <b>${status.toLowerCase()}</b>.</p>`
+            });
+          }
       }
     } catch (notifyErr) {
-      console.error('Failed to create return notification:', notifyErr)
+      console.error('Failed to create return notification:', notifyErr);
       // Do not fail the main request if notification fails
     }
 
-    return createResponse(updatedReturn, 200, 'Return request updated successfully')
+    return createResponse(updatedReturn, 200, 'Return request updated successfully');
   } catch (error) {
     console.error('Error updating return request:', error)
     return createErrorResponse('Failed to update return request', 500)

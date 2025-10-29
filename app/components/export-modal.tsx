@@ -19,7 +19,8 @@ const EXPORT_FORMATS = [
 ]
 
 export default function ExportModal({ isOpen, onClose, type, selectedItems = [], filters = {}, title }: ExportModalProps) {
-  const { get, loading } = useApi()
+  const { get } = useApi()
+  const [loading, setLoading] = useState(false)
   const [selectedFormat, setSelectedFormat] = useState('pdf')
   const [includeImages, setIncludeImages] = useState(false)
   const [dateRange, setDateRange] = useState({
@@ -28,7 +29,8 @@ export default function ExportModal({ isOpen, onClose, type, selectedItems = [],
   })
 
   const handleExport = async () => {
-    try {
+  setLoading(true)
+  try {
       const params = new URLSearchParams({
         type,
         format: selectedFormat,
@@ -69,11 +71,13 @@ export default function ExportModal({ isOpen, onClose, type, selectedItems = [],
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
 
-      toast.success('Export completed successfully!')
-      onClose()
+  toast.success('Export completed successfully!')
+  setLoading(false)
+  onClose()
     } catch (error) {
       console.error('Export failed:', error)
       toast.error('Export failed. Please try again.')
+      setLoading(false)
     }
   }
 

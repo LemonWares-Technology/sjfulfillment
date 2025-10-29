@@ -86,7 +86,7 @@ async function createDailyBillingRecords() {
       }
     }
 
-    console.log(`✅ Created ${billingRecords.length} daily billing records`)
+    // console.log(`✅ Created ${billingRecords.length} daily billing records`)
     
     // Display summary
     const totalAmount = billingRecords.reduce((sum, record) => sum + Number(record.amount), 0)

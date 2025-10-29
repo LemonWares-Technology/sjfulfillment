@@ -1,18 +1,16 @@
 import { NextRequest } from 'next/server'
 import { createErrorResponse, createResponse, withRole } from '@/app/lib/api-utils'
 import { prisma } from '@/app/lib/prisma'
-
 // POST /api/admin/seed-services
 export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
   try {
-    console.log('Seeding services...')
-
+    console.log('Seeding services...');
     // Create sample services with daily pricing
     const services = [
       {
         name: 'Inventory Management',
         description: 'Track stock levels, manage products, and monitor inventory across warehouses',
-        price: 500, // ₦500 per day
+        price: 500,
         category: 'Core Services',
         features: [
           'Real-time stock tracking',
@@ -26,7 +24,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
       {
         name: 'Order Processing',
         description: 'Process orders, manage fulfillment, and track order status',
-        price: 300, // ₦300 per day
+        price: 300,
         category: 'Core Services',
         features: [
           'Order management',
@@ -40,7 +38,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
       {
         name: 'Warehouse Management',
         description: 'Manage warehouse operations, zones, and staff assignments',
-        price: 400, // ₦400 per day
+        price: 400,
         category: 'Core Services',
         features: [
           'Warehouse zones',
@@ -54,7 +52,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
       {
         name: 'Delivery Tracking',
         description: 'Track deliveries, manage logistics partners, and monitor delivery performance',
-        price: 200, // ₦200 per day
+        price: 200,
         category: 'Logistics',
         features: [
           'Real-time tracking',
@@ -68,7 +66,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
       {
         name: 'Returns Management',
         description: 'Handle product returns, refunds, and restocking processes',
-        price: 150, // ₦150 per day
+        price: 150,
         category: 'Customer Service',
         features: [
           'Return processing',
@@ -82,7 +80,7 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
       {
         name: 'Analytics Dashboard',
         description: 'Business insights, reports, and performance analytics',
-        price: 250, // ₦250 per day
+        price: 250,
         category: 'Analytics',
         features: [
           'Sales reports',
@@ -92,64 +90,43 @@ export const POST = withRole(['SJFS_ADMIN'], async (request: NextRequest) => {
           'Export capabilities'
         ],
         isActive: true
-      },
-      {
-        name: 'Staff Management',
-        description: 'Manage staff accounts, permissions, and access control',
-        price: 100, // ₦100 per day
-        category: 'Administration',
-        features: [
-          'User management',
-          'Role-based access',
-          'Permission control',
-          'Activity logging',
-          'Team collaboration'
-        ],
-        isActive: true
-      },
-      {
-        name: 'API Access',
-        description: 'Programmatic access to platform features via REST API',
-        price: 350, // ₦350 per day
-        category: 'Integration',
-        features: [
-          'REST API access',
-          'Webhook support',
-          'Data synchronization',
-          'Third-party integrations',
-          'Custom development'
-        ],
-        isActive: true
       }
-    ]
+    ];
+
+    // Validate all service prices before creating
+    for (const service of services) {
+      if (typeof service.price !== 'number' || service.price <= 0) {
+        return createErrorResponse(`Service ${service.name} has invalid price: ${service.price}`, 400);
+      }
+    }
 
     // Check if services already exist
-    const existingServices = await prisma.service.count()
+    const existingServices = await prisma.service.count();
     if (existingServices > 0) {
       // Clear existing services first
-      await prisma.service.deleteMany({})
-      console.log(`Cleared ${existingServices} existing services`)
+      await prisma.service.deleteMany({});
+      console.log(`Cleared ${existingServices} existing services`);
     }
 
     // Create services
     for (const service of services) {
       await prisma.service.create({
         data: service
-      })
+      });
     }
 
-    console.log(`✅ Created ${services.length} services successfully!`)
+    console.log(`✅ Created ${services.length} services successfully!`);
 
     return createResponse({
       message: `Successfully seeded ${services.length} services`,
       services: services.map(s => ({ name: s.name, category: s.category, price: s.price }))
-    }, 201, 'Services seeded successfully')
+    }, 201, 'Services seeded successfully');
 
   } catch (error) {
-    console.error('❌ Error seeding services:', error)
-    return createErrorResponse('Failed to seed services', 500)
+    console.error('❌ Error seeding services:', error);
+    return createErrorResponse('Failed to seed services', 500);
   }
-})
+});
 
 // GET /api/admin/seed-services - Check if services exist
 export const GET = withRole(['SJFS_ADMIN'], async () => {
@@ -175,4 +152,4 @@ export const GET = withRole(['SJFS_ADMIN'], async () => {
     console.error('Error checking services:', error)
     return createErrorResponse('Failed to check services', 500)
   }
-})
+});

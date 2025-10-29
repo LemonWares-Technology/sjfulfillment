@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { cookies as nextCookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
@@ -30,8 +31,25 @@ export function extractTokenFromRequest(request: NextRequest): string | null {
   return null
 }
 
-export function getCurrentUser(request: NextRequest): JWTPayload | null {
-  const token = extractTokenFromRequest(request)
+export async function getCurrentUser(request: NextRequest): Promise<JWTPayload | null> {
+  let token = extractTokenFromRequest(request)
+  if (!token) {
+    // Try to get token from cookies using next/headers (App Router)
+    try {
+      const cookies = await nextCookies()
+      const cookieToken = cookies.get('token')?.value
+      if (cookieToken) token = cookieToken
+    } catch {
+      // Fallback to request.cookies for edge/runtime
+      const cookieToken = request.cookies.get('token')?.value
+      if (cookieToken) token = cookieToken
+    }
+  }
   if (!token) return null
-  return verifyToken(token)
+  const user = verifyToken(token)
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    // console.log('Decoded JWT user:', user)
+  }
+  return user
 }

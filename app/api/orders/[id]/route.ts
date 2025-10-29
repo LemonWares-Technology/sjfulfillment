@@ -113,6 +113,19 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF', 'LOGISTICS_PARTNER
       return createErrorResponse('Only admin and logistics staff can update order status', 403)
     }
 
+    // If orderNumber is being updated, check uniqueness
+    if (updateData.orderNumber) {
+      const existing = await prisma.order.findFirst({
+        where: {
+          orderNumber: updateData.orderNumber,
+          NOT: { id: orderId }
+        },
+        select: { id: true }
+      });
+      if (existing) {
+        return createErrorResponse('Order number already exists. Please use a unique value.', 400);
+      }
+    }
     // Update order
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
@@ -157,31 +170,86 @@ export const PUT = withRole(['SJFS_ADMIN', 'WAREHOUSE_STAFF', 'LOGISTICS_PARTNER
         where: { id: orderId },
         data: { deliveredAt: new Date() }
       });
-      // After marking as DELIVERED, create DAILY_SERVICE_FEE billing record for merchant
-      const merchant = await prisma.merchant.findUnique({
-        where: { id: existingOrder.merchantId },
-        select: { id: true }
-      });
-      const activeSubscription = await prisma.subscription.findFirst({
+
+      // Mark all pending daily billing records for this merchant as PAID
+      await prisma.billingRecord.updateMany({
         where: {
           merchantId: existingOrder.merchantId,
-          status: 'ACTIVE'
+          billingType: 'DAILY_SERVICE_FEE',
+          status: 'PENDING'
         },
-        select: { id: true, servicePlan: { select: { basePrice: true } } }
+        data: {
+          status: 'PAID',
+          paidDate: new Date()
+        }
       });
-      if (merchant && activeSubscription) {
-        await prisma.billingRecord.create({
-          data: {
-            merchantId: merchant.id,
-            subscriptionId: activeSubscription.id,
-            billingType: 'DAILY_SERVICE_FEE',
-            description: `Daily service fee for delivered order ${existingOrder.orderNumber}`,
-            amount: activeSubscription.servicePlan.basePrice,
-            dueDate: new Date(),
-            status: 'PENDING',
-            referenceNumber: existingOrder.orderNumber
+    }
+
+    // Handle returns: add items back to stock, log movement, notify merchant, mark refund
+    if (updateData.status === 'RETURNED') {
+      // Get order items and warehouse
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          orderItems: true,
+          warehouse: true,
+          merchant: true
+        }
+      })
+      if (order) {
+        for (const item of order.orderItems) {
+          // Find stock item for product and warehouse
+          const stockItem = await prisma.stockItem.findFirst({
+            where: {
+              productId: item.productId,
+              warehouseId: order.warehouseId as any
+            }
+          })
+          if (stockItem) {
+            await prisma.stockItem.update({
+              where: { id: stockItem.id },
+              data: {
+                quantity: { increment: item.quantity },
+                availableQuantity: { increment: item.quantity }
+              }
+            })
+            await prisma.stockMovement.create({
+              data: {
+                stockItemId: stockItem.id,
+                movementType: 'STOCK_IN',
+                quantity: item.quantity,
+                referenceType: 'ORDER',
+                referenceId: orderId,
+                reason: 'Return accepted',
+                performedBy: user.userId,
+                notes: `Return for order ${order.orderNumber}`
+              }
+            })
           }
-        });
+        }
+        // Notify merchant
+        await notificationService.createNotification({
+          recipientId: order.merchantId,
+          title: 'Return Accepted',
+          message: `Your return for order ${order.orderNumber} was accepted. Items have been restocked and refund processed.`,
+          type: 'RETURN_APPROVED',
+          priority: 'HIGH',
+          metadata: { orderId: order.id, orderNumber: order.orderNumber }
+        })
+        // Send merchant email
+        if (order.merchant.businessEmail) {
+          await sendMerchantStatusUpdateEmail({
+            to: order.merchant.businessEmail,
+            merchantName: order.merchant.businessName,
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            newStatus: 'RETURNED',
+            notes: 'Return accepted and refund processed.',
+            updatedAt: new Date(),
+            orderId: order.id
+          })
+        }
+        // TODO: Mark refund as processed (COD logic)
       }
     }
 

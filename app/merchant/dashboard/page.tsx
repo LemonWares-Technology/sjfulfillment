@@ -1,12 +1,14 @@
-'use client'
 
-import { useAuth } from '@/app/lib/auth-context'
-import DashboardLayout from '@/app/components/dashboard-layout'
-import PaymentGate from '@/app/components/payment-gate'
-import { useApi } from '@/app/lib/use-api'
-import { useEffect, useState } from 'react'
-import { formatCurrency, formatDate } from '@/app/lib/utils'
-import { useRouter } from 'next/navigation'
+"use client";
+import { useCurrency } from '@/app/lib/currency-context';
+
+import { useAuth } from '@/app/lib/auth-context';
+import DashboardLayout from '@/app/components/dashboard-layout';
+import PaymentGate from '@/app/components/payment-gate';
+import { useApi } from '@/app/lib/use-api';
+import { useEffect, useState } from 'react';
+import { formatCurrency, formatDate } from '@/app/lib/utils';
+import { useRouter } from 'next/navigation';
 
 interface MerchantService {
   id: string
@@ -50,12 +52,13 @@ interface DailyCharges {
 }
 
 export default function MerchantDashboard() {
-  const { user } = useAuth()
-  const { get, loading } = useApi()
-  const router = useRouter()
-  const [stats, setStats] = useState<MerchantStats | null>(null)
-  const [merchantServices, setMerchantServices] = useState<MerchantService[]>([])
-  const [dailyCharges, setDailyCharges] = useState<DailyCharges | null>(null)
+  const { currency: selectedCurrency } = useCurrency();
+  const { user } = useAuth();
+  const { get, loading } = useApi();
+  const router = useRouter();
+  const [stats, setStats] = useState<MerchantStats | null>(null);
+  const [merchantServices, setMerchantServices] = useState<MerchantService[]>([]);
+  const [dailyCharges, setDailyCharges] = useState<DailyCharges | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {

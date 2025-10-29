@@ -5,7 +5,9 @@ import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
 import ApiKeyModal from '@/app/components/api-key-modal'
+import DeleteApiKeyModal from '@/app/components/delete-api-key-modal'
 import WebhookModal from '@/app/components/webhook-modal'
 import ServiceGate from '@/app/components/service-gate'
 import ServiceGateGroup from '@/app/components/service-gate-group'
@@ -73,10 +75,14 @@ interface Webhook {
 }
 
 export default function SettingsPage() {
+  const [showDeleteApiKeyModal, setShowDeleteApiKeyModal] = useState(false);
+  const [apiKeyToDelete, setApiKeyToDelete] = useState<{id: string, name: string} | null>(null);
+  const [deleteApiKeyLoading, setDeleteApiKeyLoading] = useState(false);
   const { user, refreshUser } = useAuth()
   const { get, put, delete: del, loading } = useApi()
   const router = useRouter()
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
+  const { currency: selectedCurrency, setCurrency: setSelectedCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState('profile')
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -85,6 +91,9 @@ export default function SettingsPage() {
     email: '',
     phone: ''
   })
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
@@ -128,12 +137,26 @@ export default function SettingsPage() {
   }
 
   const handleSave = async () => {
+    setProfileError(null)
+    setProfileSuccess(null)
+    // Basic validation
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.phone.trim()) {
+      setProfileError('All fields are required.')
+      return
+    }
+    setProfileLoading(true)
     try {
       await put('/api/users/profile', formData)
       await fetchUserSettings()
       setIsEditing(false)
+      setProfileSuccess('Profile updated successfully.')
+      toast.success('Profile updated successfully.')
     } catch (error) {
+      setProfileError('Failed to update profile. Please try again.')
+      toast.error('Failed to update profile. Please try again.')
       console.error('Failed to update profile:', error)
+    } finally {
+      setProfileLoading(false)
     }
   }
 
@@ -177,24 +200,26 @@ export default function SettingsPage() {
     setShowWebhookModal(true)
   }
 
-  const handleDeleteApiKey = async (apiKeyId: string, apiKeyName: string) => {
-    if (!confirm(`Are you sure you want to delete the API key "${apiKeyName}"? This action cannot be undone.`)) {
-      return
-    }
+  const handleDeleteApiKey = (apiKeyId: string, apiKeyName: string) => {
+    setApiKeyToDelete({ id: apiKeyId, name: apiKeyName });
+    setShowDeleteApiKeyModal(true);
+  };
 
-    // Optimistic UI update - remove from list immediately
-    setApiKeys(prev => prev.filter(key => key.id !== apiKeyId))
-
+  const confirmDeleteApiKey = async () => {
+    if (!apiKeyToDelete) return;
+    setDeleteApiKeyLoading(true);
+    setApiKeys(prev => prev.filter(key => key.id !== apiKeyToDelete.id));
     try {
-      console.log('Deleting API key:', apiKeyId)
-      await del(`/api/api-keys/${apiKeyId}`)
-      console.log('API key deleted successfully')
+      await del(`/api/api-keys/${apiKeyToDelete.id}`);
     } catch (error) {
-      console.error('Failed to delete API key:', error)
-      // Revert optimistic update on error
-      await fetchApiKeys()
+      console.error('Failed to delete API key:', error);
+      await fetchApiKeys();
+    } finally {
+      setDeleteApiKeyLoading(false);
+      setShowDeleteApiKeyModal(false);
+      setApiKeyToDelete(null);
     }
-  }
+  };
 
   const handleDeleteWebhook = async (webhookId: string, webhookName: string) => {
     if (!confirm(`Are you sure you want to delete the webhook "${webhookName}"? This action cannot be undone.`)) {
@@ -328,14 +353,23 @@ export default function SettingsPage() {
                   </div>
 
                   {isEditing && (
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        onClick={handleSave}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-[5px]"
-                      >
-                        Save Changes
-                      </button>
-                    </div>
+                    <>
+                      {profileError && (
+                        <div className="mt-4 text-red-600 text-sm">{profileError}</div>
+                      )}
+                      {profileSuccess && (
+                        <div className="mt-4 text-green-600 text-sm">{profileSuccess}</div>
+                      )}
+                      <div className="mt-6 flex justify-end">
+                        <button
+                          onClick={handleSave}
+                          disabled={profileLoading}
+                          className={`bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-[5px] ${profileLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {profileLoading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </>
                   )}
 
                   {/* Account Info */}
@@ -525,20 +559,20 @@ export default function SettingsPage() {
                                   {/* API Key Display with 3D Effect */}
                                   <div className="mb-3">
                                     <div className="relative">
-                                      <div className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 rounded-[5px] p-3 shadow-inner">
+                                      <div className="bg-white/30 rounded-[5px] p-3 shadow-inner">
                                         <div className="flex items-center justify-between">
-                                          <code className="text-sm font-mono text-gray-200 break-all pr-2">
+                                          <code className="text-sm font-mono text-white  rounded px-2 py-1 break-all pr-2 ">
                                             {apiKey.publicKey}
                                           </code>
                                           <button
                                             onClick={() => copyToClipboard(apiKey.publicKey, `public-${apiKey.id}`)}
-                                            className="flex-shrink-0 p-1.5 text-gray-200 hover:text-gray-200 hover:bg-black/30 rounded-[5px] shadow-sm hover:shadow-md transition-all duration-200"
+                                            className="flex-shrink-0 p-1.5 border text-white rounded-[5px] shadow-sm hover:shadow-md transition-all duration-200"
                                             title="Copy API key"
                                           >
                                             {copiedKey === `public-${apiKey.id}` ? (
                                               <CheckIcon className="h-4 w-4 text-green-600" />
                                             ) : (
-                                              <ClipboardDocumentIcon className="h-4 w-4" />
+                                              <ClipboardDocumentIcon className="h-4 text-wite w-4" />
                                             )}
                                           </button>
                                         </div>
@@ -565,13 +599,13 @@ export default function SettingsPage() {
                                 <div className="flex items-center space-x-2 ml-4">
                                   <button
                                     onClick={() => openApiKeyModal(apiKey)}
-                                    className="px-3 py-1.5 text-xs font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-[5px] transition-colors"
+                                    className="px-3 py-1.5 text-xs font-medium text-white rounded-[5px] transition-colors"
                                   >
                                     Edit
                                   </button>
                                   <button
                                     onClick={() => handleDeleteApiKey(apiKey.id, apiKey.name)}
-                                    className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-[5px] transition-colors"
+                                    className="px-3 py-1.5 text-xs font-medium text-white rounded-[5px] transition-colors"
                                   >
                                     Delete
                                   </button>
@@ -700,55 +734,28 @@ export default function SettingsPage() {
               </ServiceGateGroup>
             )}
 
-            {/* {activeTab === 'preferences' && (
-              <div className="bg-black/30 shadow rounded-[5px]">
-                <div className="px-4 py-5 sm:p-6">
-                  <h2 className="text-lg font-medium text-gray-200 mb-6">Preferences</h2>
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-2">
-                        Language
-                      </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        <option>English</option>
-                        <option>French</option>
-                        <option>Spanish</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-2">
-                        Timezone
-                      </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        <option>UTC+1 (West Africa Time)</option>
-                        <option>UTC+0 (GMT)</option>
-                        <option>UTC-5 (EST)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-2">
-                        Date Format
-                      </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        <option>DD/MM/YYYY</option>
-                        <option>MM/DD/YYYY</option>
-                        <option>YYYY-MM-DD</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-2">
-                        Currency
-                      </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500">
-                        <option>Nigerian Naira (₦)</option>
-                        <option>US Dollar ($)</option>
-                        <option>Euro (€)</option>
-                      </select>
-                    </div>
+            {/* Currency Selection */}
+            {/* <div className="bg-black/30 shadow rounded-[5px] mt-8">
+              <div className="px-4 py-5 sm:p-6">
+                <h2 className="text-lg font-medium text-gray-200 mb-6">Preferences</h2>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-200 mb-2">
+                      Currency
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      value={selectedCurrency}
+                      onChange={e => setSelectedCurrency(e.target.value as 'NGN' | 'USD' | 'EUR')}
+                    >
+                      <option value="NGN">Nigerian Naira (₦)</option>
+                      <option value="USD">US Dollar ($)</option>
+                      <option value="EUR">Euro (€)</option>
+                    </select>
                   </div>
                 </div>
               </div>
-            )} */}
+            </div> */}
           </div>
         </div>
       </div>
@@ -763,6 +770,20 @@ export default function SettingsPage() {
         onSave={handleApiKeySave}
         apiKey={selectedApiKey}
       />
+
+        {/* Delete API Key Modal */}
+        {showDeleteApiKeyModal && apiKeyToDelete && (
+          <DeleteApiKeyModal
+            isOpen={showDeleteApiKeyModal}
+            apiKeyName={apiKeyToDelete.name}
+            onConfirm={confirmDeleteApiKey}
+            onClose={() => {
+              setShowDeleteApiKeyModal(false);
+              setApiKeyToDelete(null);
+            }}
+            loading={deleteApiKeyLoading}
+          />
+        )}
 
       <WebhookModal
         isOpen={showWebhookModal}

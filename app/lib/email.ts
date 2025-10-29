@@ -329,6 +329,7 @@ export async function sendOrderConfirmationEmail(params: {
   paymentMethod?: string
   createdAt: Date
   orderId: string
+  trackingNumber?: string
 }): Promise<void> {
   const {
     to,
@@ -347,7 +348,8 @@ export async function sendOrderConfirmationEmail(params: {
     merchantEmail,
     paymentMethod,
     createdAt,
-    orderId
+    orderId,
+    trackingNumber
   } = params
 
   // Format currency
@@ -498,13 +500,15 @@ export async function sendOrderConfirmationEmail(params: {
     </div>
 
     <!-- Track Order Button -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
-      <tr>
-        <td align="center">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://portal.sjfulfillment.com'}/track?orderId=${orderId}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px; margin:0 auto;">Track Your Order</a>
-        </td>
-      </tr>
-    </table>
+      ${params.trackingNumber ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+        <tr>
+          <td align="center">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://portal.sjfulfillment.com'}/track?trackingNumber=${params.trackingNumber}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px; margin:0 auto;">Track Your Order</a>
+          </td>
+        </tr>
+      </table>
+      ` : ''}
 
     <p style="color:rgba(255,255,255,0.9); font-size:14px; line-height:1.6; margin:16px 0;">You will receive email updates as your order status changes. If you have any questions about your order, please contact ${escapeHtml(merchantBusinessName)} using the information above.</p>
     <p style="color:rgba(255,255,255,0.5); font-size:12px; line-height:1.5; margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">This is an automated confirmation email. Please do not reply to this email.</p>`
@@ -678,13 +682,15 @@ export async function sendOrderStatusUpdateEmail(params: {
     </div>
 
     <!-- Track Order Button -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
-      <tr>
-        <td align="center">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://portal.sjfulfillment.com'}/track?orderId=${orderId}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px; margin:0 auto;">Track Your Order</a>
-        </td>
-      </tr>
-    </table>
+      ${trackingNumber ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+        <tr>
+          <td align="center">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://portal.sjfulfillment.com'}/track?trackingNumber=${trackingNumber}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px; margin:0 auto;">Track Your Order</a>
+          </td>
+        </tr>
+      </table>
+      ` : ''}
 
     <p style="color:rgba(255,255,255,0.9); font-size:14px; line-height:1.6; margin:0 0 16px;">If you have any questions about your order, please contact ${escapeHtml(merchantBusinessName)} using the information above.</p>
     <p style="color:rgba(255,255,255,0.5); font-size:12px; line-height:1.5; margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">This is an automated notification email. Please do not reply to this email.</p>`
@@ -715,6 +721,7 @@ export async function sendMerchantOrderNotificationEmail(params: {
   paymentMethod?: string
   createdAt: Date
   orderId: string
+  trackingNumber?: string
 }): Promise<void> {
   const {
     to,
@@ -730,7 +737,8 @@ export async function sendMerchantOrderNotificationEmail(params: {
     shippingAddress,
     paymentMethod,
     createdAt,
-    orderId
+    orderId,
+    trackingNumber
   } = params
 
   // Format currency
@@ -753,26 +761,18 @@ export async function sendMerchantOrderNotificationEmail(params: {
   }
 
   const content = `
-    <h1 style="color:#f08c17; font-size:28px; font-weight:bold; margin:0 0 8px; text-align:center;">New Order Received!</h1>
-    <p style="color:rgba(255,255,255,0.9); font-size:16px; line-height:1.6; margin:0 0 24px; text-align:center;">Hi ${escapeHtml(merchantName)}, you have received a new order.</p>
-
-    <!-- Order Header -->
-    <div style="background:linear-gradient(135deg, rgba(240,140,23,0.3), rgba(255,159,58,0.3)); border:2px solid #f08c17; border-radius:5px; padding:20px; margin:0 0 24px; text-align:center;">
-      <span style="color:rgba(255,255,255,0.7); font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">Order Number</span><br/>
-      <span style="color:#f08c17; font-size:24px; font-weight:bold; font-family:monospace;">${escapeHtml(orderNumber)}</span><br/>
-      <span style="color:rgba(255,255,255,0.7); font-size:12px; margin-top:8px; display:inline-block;">${formatDate(createdAt)}</span>
-    </div>
-
-    <!-- Customer Information -->
-    <h2 style="color:#f08c17; font-size:20px; font-weight:600; margin:0 0 16px;">Customer Information</h2>
-    <div style="background:rgba(255,255,255,0.15); border-radius:5px; padding:16px; margin:0 0 24px;">
-      <p style="color:rgba(255,255,255,0.9); font-size:14px; margin:0 0 8px;"><strong>Name:</strong> ${escapeHtml(customerName)}</p>
-      <p style="color:rgba(255,255,255,0.9); font-size:14px; margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(customerEmail)}</p>
-      <p style="color:rgba(255,255,255,0.9); font-size:14px; margin:0 0 8px;"><strong>Phone:</strong> ${escapeHtml(customerPhone)}</p>
-      <p style="color:rgba(255,255,255,0.9); font-size:14px; margin:0;"><strong>Shipping Address:</strong><br/>${escapeHtml(shippingAddress).replace(/\n/g, '<br/>')}</p>
-    </div>
-
-    <!-- Order Items -->
+    <h2>New Order Received</h2>
+    <p><strong>Order Number:</strong> ${orderNumber}</p>
+    ${trackingNumber ? `<p><strong>Tracking Number:</strong> ${trackingNumber}</p>` : ''}
+    <p><strong>Customer Name:</strong> ${customerName}</p>
+    <p><strong>Customer Email:</strong> ${customerEmail}</p>
+    <p><strong>Customer Phone:</strong> ${customerPhone}</p>
+    <p><strong>Shipping Address:</strong> ${shippingAddress}</p>
+    <p><strong>Payment Method:</strong> ${paymentMethod || 'N/A'}</p>
+    <p><strong>Order Value:</strong> ₦${orderValue.toLocaleString()}</p>
+    <p><strong>Delivery Fee:</strong> ₦${deliveryFee.toLocaleString()}</p>
+    <p><strong>Total Amount:</strong> ₦${totalAmount.toLocaleString()}</p>
+    <p><strong>Order Date:</strong> ${createdAt.toLocaleString()}</p>
     <h2 style="color:#f08c17; font-size:20px; font-weight:600; margin:0 0 16px;">Order Items</h2>
     <table role="presentation" width="100%" cellpadding="8" cellspacing="0" border="0" style="background:rgba(255,255,255,0.15); border-radius:5px; margin:0 0 16px;">
       <thead>
@@ -796,8 +796,6 @@ export async function sendMerchantOrderNotificationEmail(params: {
         `).join('')}
       </tbody>
     </table>
-
-    <!-- Order Summary -->
     <div style="background:rgba(255,255,255,0.15); border-radius:5px; padding:20px; margin:0 0 24px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
@@ -814,16 +812,12 @@ export async function sendMerchantOrderNotificationEmail(params: {
         </tr>
       </table>
     </div>
-
     ${paymentMethod ? `
-    <!-- Payment Method -->
     <div style="background:rgba(255,255,255,0.15); border-radius:5px; padding:16px; margin:0 0 24px;">
       <span style="color:rgba(255,255,255,0.7); font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">Payment Method</span><br/>
       <span style="color:rgba(255,255,255,0.9); font-size:14px; font-weight:600;">${escapeHtml(paymentMethod.replace(/_/g, ' '))}</span>
     </div>
     ` : ''}
-
-    <!-- Action Buttons -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
       <tr>
         <td align="center">
@@ -831,12 +825,12 @@ export async function sendMerchantOrderNotificationEmail(params: {
         </td>
       </tr>
     </table>
-
     <p style="color:rgba(255,255,255,0.9); font-size:14px; line-height:1.6; margin:16px 0; text-align:center;">Please process this order promptly. The customer has been notified and is expecting timely fulfillment.</p>
-    <p style="color:rgba(255,255,255,0.5); font-size:12px; line-height:1.5; margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1); text-align:center;">This is an automated notification from SJFulfillment.</p>`
+    <p style="color:rgba(255,255,255,0.5); font-size:12px; line-height:1.5; margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1); text-align:center;">This is an automated notification from SJFulfillment.</p>
+  `;
 
-  const html = createEmailTemplate('New Order Received', content)
-  await sendEmail({ to, subject: `New Order: ${orderNumber}`, html })
+  const html = createEmailTemplate('New Order Received', content);
+  await sendEmail({ to, subject: `New Order: ${orderNumber}`, html });
 }
 
 // Send order status update notification to merchant
@@ -996,19 +990,44 @@ export async function sendMerchantStatusUpdateEmail(params: {
     ` : ''}
 
     <!-- Action Button -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
-      <tr>
-        <td align="center">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://portal.sjfulfillment.com'}/orders/${orderId}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px; margin:0 auto;">View Order Details</a>
-        </td>
-      </tr>
-    </table>
+      ${trackingNumber ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+        <tr>
+          <td align="center">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://portal.sjfulfillment.com'}/track?trackingNumber=${trackingNumber}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px; margin:0 auto;">Track Your Order</a>
+          </td>
+        </tr>
+      </table>
+      ` : ''}
 
     <p style="color:rgba(255,255,255,0.9); font-size:14px; line-height:1.6; margin:16px 0; text-align:center;">The customer has been notified about this status update.</p>
     <p style="color:rgba(255,255,255,0.5); font-size:12px; line-height:1.5; margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1); text-align:center;">This is an automated notification from SJFulfillment.</p>`
 
   const html = createEmailTemplate('Order Status Update', content)
   await sendEmail({ to, subject: `Order Update: ${orderNumber} - ${statusInfo.title}`, html })
+}
+
+
+// Send merchant verification email (for onboarding)
+export async function sendMerchantVerificationEmail(params: { to: string; verificationUrl: string; businessName?: string }) {
+  const { to, verificationUrl, businessName } = params;
+  const content = `
+    <h1 style="color:#f08c17; font-size:28px; font-weight:bold; margin:0 0 16px; text-align:center;">Verify Your Merchant Account</h1>
+    <p style="color:rgba(255,255,255,0.9); font-size:16px; line-height:1.6; margin:0 0 16px;">Hi${businessName ? ` ${escapeHtml(businessName)}` : ''},</p>
+    <p style="color:rgba(255,255,255,0.9); font-size:16px; line-height:1.6; margin:0 0 24px;">Thank you for registering as a merchant on SJFulfillment. Please verify your email address to activate your account.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td align="center" style="padding:0 0 24px;">
+          <a href="${verificationUrl}" style="display:inline-block; background:linear-gradient(to right, #f08c17, #ff9f3a); color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:5px;">Verify Your Account</a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:rgba(255,255,255,0.7); font-size:14px; line-height:1.6; margin:0 0 8px;">If the button doesn't work, copy and paste this link into your browser:</p>
+    <p style="color:rgba(255,255,255,0.6); font-size:12px; font-family:monospace; background:rgba(0,0,0,0.3); padding:8px; border-radius:3px; word-break:break-all; margin:0 0 24px;">${verificationUrl}</p>
+    <p style="color:rgba(255,255,255,0.5); font-size:12px; line-height:1.5; margin:0; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">If you didn't request this account, please ignore this email or contact support.</p>
+  `;
+  const html = createEmailTemplate('Verify Your Merchant Account', content);
+  await sendEmail({ to, subject: 'Verify Your SJFulfillment Merchant Account', html });
 }
 
 function escapeHtml(input: string) {

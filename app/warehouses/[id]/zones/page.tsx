@@ -6,6 +6,8 @@ import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDate, formatCurrency } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+  const { currency: selectedCurrency } = useCurrency();
 import { 
   ArrowLeftIcon,
   PlusIcon,

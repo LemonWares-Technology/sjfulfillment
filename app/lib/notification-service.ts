@@ -239,15 +239,15 @@ class NotificationService {
         skip: offset
       })
 
-      console.log(`📬 Found ${notifications.length} notifications for user ${userId}`)
-      if (notifications.length > 0) {
-        console.log('Latest notification:', {
-          id: notifications[0].id,
-          title: notifications[0].title,
-          recipientId: notifications[0].recipientId,
-          createdAt: notifications[0].createdAt
-        })
-      }
+      // console.log(`📬 Found ${notifications.length} notifications for user ${userId}`)
+      // if (notifications.length > 0) {
+      //   console.log('Latest notification:', {
+      //     id: notifications[0].id,
+      //     title: notifications[0].title,
+      //     recipientId: notifications[0].recipientId,
+      //     createdAt: notifications[0].createdAt
+      //   })
+      // }
 
       return notifications
     } catch (error) {

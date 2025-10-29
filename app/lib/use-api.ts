@@ -31,44 +31,70 @@ export function useApi() {
       const response = await fetch(url, {
         ...fetchOptions,
         headers: {
-          // Don't set Content-Type for FormData - let browser set it with boundary
           ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
           ...(token && { Authorization: `Bearer ${token}` }),
           ...fetchOptions.headers,
         },
       });
 
-      const data: ApiResponse<T> = await response.json();
+      let data: ApiResponse<T> | undefined;
+      let rawText: string | undefined;
+      let isJson = true;
+      try {
+        rawText = await response.text();
+        try {
+          data = JSON.parse(rawText);
+        } catch (jsonError) {
+          isJson = false;
+        }
+      } catch (streamError) {
+        // If even reading the text fails, show a generic error
+        throw new Error('Unable to read server response.');
+      }
+
+      if (!isJson) {
+        if (rawText && rawText.startsWith('<!DOCTYPE')) {
+          throw new Error('Server returned HTML instead of JSON. Please check your API endpoint.');
+        }
+        throw new Error('Invalid response format.');
+      }
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Redirect to unauthorized page for 401 errors
           window.location.href = '/unauthorized';
           throw new Error('Unauthorized');
         }
+        throw new Error((data && data.error) || "Request failed");
+      }
+
+      if (data && !data.success) {
         throw new Error(data.error || "Request failed");
       }
 
-      if (!data.success) {
-        throw new Error(data.error || "Request failed");
-      }
-
-      return data.data as T;
+      return (data && data.data) as T;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "An error occurred";
+      let errorMessage = "An error occurred";
+      let isNetworkError = false;
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        errorMessage = "Network error: Unable to reach the server. Please check your connection or try again later.";
+        isNetworkError = true;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       console.error("API Error:", errorMessage);
-      
-      // Handle 401 unauthorized errors
+
       if (error instanceof Error && error.message.includes('401')) {
-        // Redirect to unauthorized page
         window.location.href = '/unauthorized';
         throw error;
       }
-      
-      // Only show toast for non-array requests to avoid spam
+
       if (!options.silent) {
-        toast.error(errorMessage);
+        if (isNetworkError && typeof window !== 'undefined') {
+          // Dispatch a custom event to show network modal
+          window.dispatchEvent(new CustomEvent('network-modal', { detail: { reconnecting: true } }));
+        } else {
+          toast.error(errorMessage);
+        }
       }
       throw error;
     } finally {

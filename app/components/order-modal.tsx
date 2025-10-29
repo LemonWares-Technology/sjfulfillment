@@ -1,9 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+// ...existing code...
+interface AddonService {
+  id: string
+  name: string
+  price: number
+  description?: string
+}
+import { useAuth } from '@/app/lib/auth-context'
 import { XMarkIcon, PlusIcon, MinusIcon } from '@heroicons/react/24/outline'
 import { useApi } from '@/app/lib/use-api'
 import { formatCurrency } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
 
 interface Product {
   id: string
@@ -37,8 +46,24 @@ interface OrderModalProps {
 }
 
 export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps) {
+  const [orderSuccess, setOrderSuccess] = useState<{ trackingNumber: string } | null>(null)
+  const { currency: selectedCurrency } = useCurrency();
+  // ...existing code...
+  const [addonServices, setAddonServices] = useState<AddonService[]>([])
+  const [selectedAddons, setSelectedAddons] = useState<string[]>([])
   const { post, get, loading } = useApi()
+  const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
+  const [merchants, setMerchants] = useState<any[]>([])
+  const [selectedMerchant, setSelectedMerchant] = useState<string>('')
+  // Fetch merchants for admin
+  useEffect(() => {
+    if (isOpen && user?.role === 'SJFS_ADMIN') {
+      get('/api/merchants?limit=100').then((res) => {
+        setMerchants(res?.merchants || [])
+      })
+    }
+  }, [isOpen, user, get])
   const [warehouses, setWarehouses] = useState<any[]>([])
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('')
@@ -60,8 +85,17 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
     if (isOpen) {
       fetchProducts()
       fetchWarehouses()
+      fetchAddonServices()
     }
   }, [isOpen])
+  const fetchAddonServices = async () => {
+    try {
+      const response = await get<{addonServices: AddonService[]}>('/api/addon-services')
+      setAddonServices(response?.addonServices || [])
+    } catch (error) {
+      console.error('Failed to fetch addon services:', error)
+    }
+  }
 
   // Refetch when search changes
   useEffect(() => {
@@ -91,9 +125,9 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
       
       if (productSearchTerm) params.append('search', productSearchTerm)
       
-      console.log('Fetching products with params:', params.toString())
+      // console.log('Fetching products with params:', params.toString())
       const response = await get<{products: Product[], pagination: any}>(`/api/products?${params.toString()}`)
-      console.log('Products API response:', response)
+      // console.log('Products API response:', response)
       
       setProducts(response?.products || [])
       
@@ -111,7 +145,7 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
   const fetchWarehouses = async () => {
     try {
       const response = await get<{warehouses: any[]}>('/api/warehouses')
-      console.log('Warehouse API response:', response)
+      // console.log('Warehouse API response:', response)
       setWarehouses(response?.warehouses || [])
     } catch (error) {
       console.error('Failed to fetch warehouses:', error)
@@ -156,7 +190,11 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
   }
 
   const getTotalAmount = () => {
-    return Number(orderItems.reduce((total, item) => total + item.totalPrice, 0))
+    const itemsTotal = Number(orderItems.reduce((total, item) => total + item.totalPrice, 0))
+    const addonsTotal = addonServices
+      .filter(a => selectedAddons.includes(a.id))
+      .reduce((total, a) => total + a.price, 0)
+    return itemsTotal + addonsTotal
   }
 
   const getAvailableQuantity = (product: Product) => {
@@ -181,13 +219,14 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
       return
     }
 
-    if (!selectedWarehouse) {
+    // Only require warehouse for admin/warehouse staff
+    if ((user?.role === 'SJFS_ADMIN' || user?.role === 'WAREHOUSE_STAFF') && !selectedWarehouse) {
       alert('Please select a warehouse')
       return
     }
 
     try {
-      const orderData = {
+      const orderData: any = {
         customerName: customerInfo.name,
         customerEmail: customerInfo.email,
         customerPhone: customerInfo.phone,
@@ -197,7 +236,6 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
           state: 'Lagos', // Default state
           country: 'Nigeria'
         },
-        warehouseId: selectedWarehouse,
         items: orderItems.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -205,19 +243,26 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
         })),
         orderValue: getTotalAmount(),
         deliveryFee: 0, // Can be calculated based on location
-        paymentMethod: 'COD'
+        paymentMethod: 'COD',
+        addons: selectedAddons.map(id => ({ addonServiceId: id }))
+      }
+      if (user?.role === 'SJFS_ADMIN' || user?.role === 'WAREHOUSE_STAFF') {
+        orderData.warehouseId = selectedWarehouse
+      }
+      if (user?.role === 'SJFS_ADMIN') {
+        orderData.merchantId = selectedMerchant
       }
 
-      console.log('📦 Creating order with data:', {
-        customerName: orderData.customerName,
-        customerEmail: orderData.customerEmail,
-        itemCount: orderData.items.length,
-        totalAmount: getTotalAmount()
-      })
+      // console.log('📦 Creating order with data:', {
+      //   customerName: orderData.customerName,
+      //   customerEmail: orderData.customerEmail,
+      //   itemCount: orderData.items.length,
+      //   totalAmount: getTotalAmount()
+      // })
 
       const response = await post('/api/orders', orderData)
       
-      console.log('✅ Order created successfully:', response)
+      // console.log('✅ Order created successfully:', response)
       
       // Show success message
       if (typeof window !== 'undefined') {
@@ -230,8 +275,11 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
       
       onSave()
       onClose()
-      
-      // Reset form
+        setOrderSuccess({ trackingNumber: response?.trackingNumber })
+        // Reset form
+        setOrderItems([])
+        setCustomerInfo({ name: '', email: '', phone: '', address: '' })
+        setSelectedWarehouse('')
       setOrderItems([])
       setCustomerInfo({ name: '', email: '', phone: '', address: '' })
       setSelectedWarehouse('')
@@ -261,9 +309,46 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
               <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
+          {orderSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+              <div>
+                <span className="block text-green-700 font-semibold mb-1">Tracking Number:</span>
+                <span className="font-mono text-green-900 text-lg bg-green-100 px-2 py-1 rounded">{orderSuccess.trackingNumber}</span>
+              </div>
+              <button
+                type="button"
+                className="ml-4 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                onClick={() => {
+                  navigator.clipboard.writeText(orderSuccess.trackingNumber)
+                }}
+              >
+                Copy
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Customer Information */}
+            {/* DEBUG: Show current user role for troubleshooting */}
+            <div className="mb-2 text-xs text-gray-500">Current user role: {user?.role}</div>
+            {/* Merchant Selection for Admin */}
+            {user?.role === 'SJFS_ADMIN' && (
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <h3 className="text-md font-medium text-gray-900 mb-4">Select Merchant *</h3>
+                <select
+                  required
+                  value={selectedMerchant}
+                  onChange={(e) => setSelectedMerchant(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">Select Merchant</option>
+                  {merchants.map((merchant: any) => (
+                    <option key={merchant.id} value={merchant.id}>
+                      {merchant.businessName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-md font-medium text-gray-900 mb-4">Customer Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -317,26 +402,55 @@ export default function OrderModal({ isOpen, onClose, onSave }: OrderModalProps)
               </div>
             </div>
 
-            {/* Warehouse Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Select Warehouse *
-              </label>
-              <select
-                required
-                value={selectedWarehouse}
-                onChange={(e) => setSelectedWarehouse(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="">Select Warehouse</option>
-                {warehouses.map(warehouse => (
-                  <option key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name} ({warehouse.code})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Warehouse Selection (only for admin/warehouse staff) */}
+            {(user?.role === 'SJFS_ADMIN' || user?.role === 'WAREHOUSE_STAFF') && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Warehouse *
+                </label>
+                <select
+                  required
+                  value={selectedWarehouse}
+                  onChange={(e) => setSelectedWarehouse(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">Select Warehouse</option>
+                  {warehouses.map(warehouse => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name} ({warehouse.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
+            {/* Add-on Selection */}
+            {addonServices.length > 0 && (
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <h3 className="text-md font-medium text-gray-900 mb-4">Add-ons</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {addonServices.map(addon => (
+                    <label key={addon.id} className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedAddons.includes(addon.id)}
+                        onChange={e => {
+                          setSelectedAddons(prev =>
+                            e.target.checked
+                              ? [...prev, addon.id]
+                              : prev.filter(id => id !== addon.id)
+                          )
+                        }}
+                        className="form-checkbox h-5 w-5 text-amber-500"
+                      />
+                      <span className="font-medium text-gray-900">{addon.name}</span>
+                      <span className="text-gray-600">{formatCurrency(addon.price)}</span>
+                      {addon.description && <span className="text-xs text-gray-500">{addon.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Product Selection */}
             <div>
               <h3 className="text-md font-medium text-gray-900 mb-4">Add Products</h3>

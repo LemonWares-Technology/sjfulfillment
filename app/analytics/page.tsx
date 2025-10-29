@@ -5,6 +5,8 @@ import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatNumber, formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { 
   ChartBarIcon, 
   ArrowTrendingUpIcon, 
@@ -15,6 +17,18 @@ import {
   DocumentTextIcon,
   BuildingStorefrontIcon
 } from '@heroicons/react/24/outline'
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js'
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 import ServiceGate from '@/app/components/service-gate'
 import ServiceGateGroup from '@/app/components/service-gate-group'
 
@@ -54,6 +68,7 @@ interface DateRange {
 }
 
 export default function AnalyticsPage() {
+  const { currency: selectedCurrency } = useCurrency();
   const { user } = useAuth()
   const { get } = useApi()
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
@@ -354,7 +369,7 @@ export default function AnalyticsPage() {
               />
               <StatCard
                 title="Total Revenue"
-                value={formatCurrency(analytics.overview.totalRevenue)}
+                value={formatCurrency(analytics.overview.totalRevenue, selectedCurrency)}
                 change={analytics.overview.revenueGrowth}
                 changeType={analytics.overview.revenueGrowth >= 0 ? 'increase' : 'decrease'}
                 icon={ArrowTrendingUpIcon}
@@ -371,18 +386,75 @@ export default function AnalyticsPage() {
               />
             </div>
 
-            {/* Charts Placeholder */}
+            {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white/30 shadow rounded-[5px] p-6">
                 <h3 className="text-lg font-medium text-white mb-4">Order Trends</h3>
-                <div className="h-64 bg-white/20 rounded-[5px] flex items-center justify-center">
-                  <p className="text-white">Chart visualization would go here</p>
+                <div className="h-64 bg-white/20 rounded-[5px]">
+                  <Line
+                    data={{
+                      labels: analytics.orders.daily.map(d => formatDate(d.date)),
+                      datasets: [
+                        {
+                          label: 'Orders',
+                          data: analytics.orders.daily.map(d => d.count),
+                          borderColor: '#f08c17',
+                          backgroundColor: 'rgba(240,140,23,0.2)',
+                          tension: 0.4,
+                        },
+                        {
+                          label: 'Revenue',
+                          data: analytics.orders.daily.map(d => d.revenue),
+                          borderColor: '#2563eb',
+                          backgroundColor: 'rgba(37,99,235,0.2)',
+                          tension: 0.4,
+                          yAxisID: 'y1',
+                        }
+                      ]
+                    }}
+                    options={{
+                      responsive: true,
+                      plugins: {
+                        legend: { position: 'top', labels: { color: 'white' } },
+                        title: { display: false }
+                      },
+                      scales: {
+                        x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        y1: { position: 'right', ticks: { color: 'white' }, grid: { drawOnChartArea: false } }
+                      }
+                    }}
+                  />
                 </div>
               </div>
               <div className="bg-white/30 shadow rounded-[5px] p-6">
                 <h3 className="text-lg font-medium text-white mb-4">Revenue Trends</h3>
-                <div className="h-64 bg-white/20 rounded-[5px] flex items-center justify-center">
-                  <p className="text-white">Chart visualization would go here</p>
+                <div className="h-64 bg-white/20 rounded-[5px]">
+                  <Line
+                    data={{
+                      labels: analytics.revenue.daily.map(d => formatDate(d.date)),
+                      datasets: [
+                        {
+                          label: 'Revenue',
+                          data: analytics.revenue.daily.map(d => d.amount),
+                          borderColor: '#2563eb',
+                          backgroundColor: 'rgba(37,99,235,0.2)',
+                          tension: 0.4,
+                        }
+                      ]
+                    }}
+                    options={{
+                      responsive: true,
+                      plugins: {
+                        legend: { position: 'top', labels: { color: 'white' } },
+                        title: { display: false }
+                      },
+                      scales: {
+                        x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                      }
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -423,7 +495,7 @@ export default function AnalyticsPage() {
                       <span className="text-sm text-white">{formatDate(day.date)}</span>
                       <div className="flex items-center space-x-4">
                         <span className="text-sm text-white">{day.count} orders</span>
-                        <span className="text-sm font-medium text-white">{formatCurrency(day.revenue)}</span>
+                        <span className="text-sm font-medium text-white">{formatCurrency(day.revenue, selectedCurrency)}</span>
                       </div>
                     </div>
                   ))}
@@ -452,7 +524,7 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-white">{product.quantity} sold</p>
-                        <p className="text-xs text-white">{formatCurrency(product.revenue)}</p>
+                        <p className="text-xs text-white">{formatCurrency(product.revenue, selectedCurrency)}</p>
                       </div>
                     </div>
                   ))}
@@ -500,7 +572,7 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-white">{customer.orderCount} orders</p>
-                        <p className="text-xs text-white">{formatCurrency(customer.totalSpent)}</p>
+                        <p className="text-xs text-white">{formatCurrency(customer.totalSpent, selectedCurrency)}</p>
                       </div>
                     </div>
                   ))}
@@ -541,7 +613,7 @@ export default function AnalyticsPage() {
                             style={{ width: `${(method.amount / analytics.revenue.byPaymentMethod.reduce((sum, m) => sum + m.amount, 0)) * 100}%` }}
                           ></div>
                         </div>
-                        <span className="text-sm font-medium text-white w-20">{formatCurrency(method.amount)}</span>
+                        <span className="text-sm font-medium text-white w-20">{formatCurrency(method.amount, selectedCurrency)}</span>
                       </div>
                     </div>
                   ))}
@@ -555,7 +627,7 @@ export default function AnalyticsPage() {
                   {analytics.revenue.daily.slice(-7).map((day) => (
                     <div key={day.date} className="flex items-center justify-between py-2">
                       <span className="text-sm text-white">{formatDate(day.date)}</span>
-                      <span className="text-sm font-medium text-white">{formatCurrency(day.amount)}</span>
+                      <span className="text-sm font-medium text-white">{formatCurrency(day.amount, selectedCurrency)}</span>
                     </div>
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -39,6 +39,13 @@ export default function ConfirmDeleteModal({
   const [password, setPassword] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // Reset loading state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsProcessing(false)
+    }
+  }, [isOpen])
+
   const handleConfirm = async () => {
     if (requireTextConfirm) {
       if (input !== expectedText) {
@@ -55,6 +62,7 @@ export default function ConfirmDeleteModal({
     setIsProcessing(true)
     try {
       await onConfirm(password || undefined)
+      setIsProcessing(false)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete')
       setIsProcessing(false)

@@ -6,19 +6,13 @@ import { createErrorResponse, createResponse } from "@/app/lib/api-utils"
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const orderId = searchParams.get("orderId")
     const trackingNumber = searchParams.get("trackingNumber")
 
-    if (!orderId && !trackingNumber) {
-      return createErrorResponse("Order ID or tracking number is required", 400)
+    if (!trackingNumber) {
+      return createErrorResponse("Tracking number is required", 400)
     }
 
-    const where: any = {}
-    if (orderId) {
-      where.id = orderId
-    } else if (trackingNumber) {
-      where.trackingNumber = trackingNumber
-    }
+    const where: any = { trackingNumber };
 
     const order = await prisma.order.findFirst({
       where,

@@ -1,3 +1,82 @@
+// Utility: Expire undelivered orders older than 30 days
+export async function expireUndeliveredOrders() {
+  const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  // Find undelivered, non-cancelled, non-returned orders older than 30 days
+  const overdueOrders = await prisma.order.findMany({
+    where: {
+      status: { notIn: ["DELIVERED", "CANCELLED", "RETURNED"] },
+      createdAt: { lte: THIRTY_DAYS_AGO },
+    },
+    include: {
+      orderItems: true,
+    },
+  });
+
+  for (const order of overdueOrders) {
+    // Mark order as returned
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "RETURNED" },
+    });
+
+    // Create status history entry
+    await prisma.orderStatusHistory.create({
+      data: {
+        orderId: order.id,
+        status: "RETURNED",
+        updatedBy: null,
+        notes:
+          "Order automatically marked as returned after 30 days undelivered.",
+      },
+    });
+
+    // Return items to inventory
+    for (const item of order.orderItems) {
+      await prisma.stockItem.updateMany({
+        where: { productId: item.productId },
+        data: {
+          availableQuantity: { increment: item.quantity },
+          reservedQuantity: { decrement: item.quantity },
+        },
+      });
+    }
+
+    // Notify admin and merchant
+    // Find merchant admin user
+    const merchantAdmin = await prisma.user.findFirst({
+      where: { merchantId: order.merchantId, role: "MERCHANT_ADMIN" },
+      select: { id: true },
+    });
+
+    // Notify merchant
+    if (merchantAdmin) {
+      await notificationService.createNotification({
+        recipientId: merchantAdmin.id,
+        title: "Order Returned to Inventory",
+        message: `Order ${order.orderNumber} was not delivered in 30 days and has been marked as returned. Items have been returned to inventory.`,
+        type: "ORDER_UPDATED",
+        priority: "HIGH",
+        metadata: { orderId: order.id, orderNumber: order.orderNumber },
+      });
+    }
+
+    // Notify all admins
+    const admins = await prisma.user.findMany({
+      where: { role: "SJFS_ADMIN" },
+      select: { id: true },
+    });
+    for (const admin of admins) {
+      await notificationService.createNotification({
+        recipientId: admin.id,
+        title: "Order Returned to Inventory",
+        message: `Order ${order.orderNumber} was not delivered in 30 days and has been marked as returned. Items have been returned to inventory.`,
+        type: "ORDER_UPDATED",
+        priority: "HIGH",
+        metadata: { orderId: order.id, orderNumber: order.orderNumber },
+      });
+    }
+  }
+}
 import { NextRequest } from "next/server";
 
 import { JWTPayload } from "@/app/lib/auth";
@@ -8,8 +87,14 @@ import {
   withRole,
 } from "@/app/lib/api-utils";
 import { createOrderSchema } from "@/app/lib/validations";
-import { notificationService, NotificationTemplates } from "@/app/lib/notification-service";
-import { sendOrderConfirmationEmail, sendMerchantOrderNotificationEmail } from "@/app/lib/email";
+import {
+  notificationService,
+  NotificationTemplates,
+} from "@/app/lib/notification-service";
+import {
+  sendOrderConfirmationEmail,
+  sendMerchantOrderNotificationEmail,
+} from "@/app/lib/email";
 
 // GET /api/orders
 export const GET = withRole(
@@ -42,6 +127,7 @@ export const GET = withRole(
           { customerName: { contains: search, mode: "insensitive" } },
           { customerEmail: { contains: search, mode: "insensitive" } },
           { customerPhone: { contains: search, mode: "insensitive" } },
+          { merchant: { businessName: { contains: search, mode: "insensitive" } } },
         ];
       }
 
@@ -80,6 +166,7 @@ export const GET = withRole(
                     sku: true,
                     name: true,
                     category: true,
+                    unitPrice: true,
                   },
                 },
               },
@@ -133,14 +220,19 @@ export const POST = withRole(
   async (request: NextRequest, user) => {
     try {
       const body = await request.json();
-      console.log('Order creation request body:', body);
-      console.log('orderValue type:', typeof body.orderValue, 'value:', body.orderValue);
-      
+      console.log("Order creation request body:", body);
+      console.log(
+        "orderValue type:",
+        typeof body.orderValue,
+        "value:",
+        body.orderValue
+      );
+
       // Convert orderValue to number if it's a string
-      if (typeof body.orderValue === 'string') {
+      if (typeof body.orderValue === "string") {
         body.orderValue = parseFloat(body.orderValue);
       }
-      
+
       const orderData = createOrderSchema.parse(body);
 
       // Set merchant ID
@@ -211,29 +303,37 @@ export const POST = withRole(
         return createErrorResponse("Insufficient stock for some items", 400);
       }
 
+      // Generate tracking number
+      const trackingNumber = `TRK-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
       // Create order
-      const newOrder = await prisma.order.create({
-        data: {
-          orderNumber,
-          merchantId,
-          customerName: orderData.customerName,
-          customerEmail: orderData.customerEmail,
-          customerPhone: orderData.customerPhone,
-          shippingAddress: orderData.shippingAddress,
-          orderValue: itemsTotal,
-          deliveryFee: orderData.deliveryFee,
-          totalAmount,
-          paymentMethod: orderData.paymentMethod,
-          notes: orderData.notes,
-          orderItems: {
-            create: orderData.items.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              totalPrice: item.quantity * item.unitPrice,
-            })),
-          },
+      const orderCreateData: any = {
+        orderNumber,
+        merchantId,
+        customerName: orderData.customerName,
+        customerEmail: orderData.customerEmail,
+        customerPhone: orderData.customerPhone,
+        shippingAddress: orderData.shippingAddress,
+        orderValue: itemsTotal,
+        deliveryFee: orderData.deliveryFee,
+        totalAmount,
+        paymentMethod: orderData.paymentMethod,
+        notes: orderData.notes,
+        trackingNumber,
+        orderItems: {
+          create: orderData.items.map((item: { productId: string; quantity: number; unitPrice: number }) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.quantity * item.unitPrice,
+          })),
         },
+      };
+      if (orderData.warehouseId) {
+        orderCreateData.warehouseId = orderData.warehouseId;
+      }
+      const newOrder = await prisma.order.create({
+        data: orderCreateData,
         include: {
           merchant: {
             select: {
@@ -309,7 +409,7 @@ export const POST = withRole(
       await prisma.auditLog.create({
         data: {
           user: {
-            connect: { id: user.userId }
+            connect: { id: user.userId },
           },
           action: "CREATE_ORDER",
           entityType: "orders",
@@ -322,29 +422,38 @@ export const POST = withRole(
       try {
         // Notify warehouse staff about new order
         await notificationService.createRoleNotification({
-          ...NotificationTemplates.ORDER_CREATED(newOrder.orderNumber, newOrder.customerName),
-          recipientRole: 'WAREHOUSE_STAFF',
+          ...NotificationTemplates.ORDER_CREATED(
+            newOrder.orderNumber,
+            newOrder.customerName
+          ),
+          recipientRole: "WAREHOUSE_STAFF",
           metadata: {
             orderId: newOrder.id,
             orderNumber: newOrder.orderNumber,
             merchantId: newOrder.merchantId,
-            totalAmount: newOrder.totalAmount
-          }
-        })
+            totalAmount: newOrder.totalAmount,
+          },
+        });
 
         // Notify admin about new order
         await notificationService.createRoleNotification({
-          ...NotificationTemplates.ORDER_CREATED(newOrder.orderNumber, newOrder.customerName),
-          recipientRole: 'SJFS_ADMIN',
+          ...NotificationTemplates.ORDER_CREATED(
+            newOrder.orderNumber,
+            newOrder.customerName
+          ),
+          recipientRole: "SJFS_ADMIN",
           metadata: {
             orderId: newOrder.id,
             orderNumber: newOrder.orderNumber,
             merchantId: newOrder.merchantId,
-            totalAmount: newOrder.totalAmount
-          }
-        })
+            totalAmount: newOrder.totalAmount,
+          },
+        });
       } catch (notificationError) {
-        console.error('Error sending order creation notifications:', notificationError)
+        console.error(
+          "Error sending order creation notifications:",
+          notificationError
+        );
         // Don't fail the order creation if notifications fail
       }
 
@@ -354,41 +463,51 @@ export const POST = withRole(
         const merchantUser = await prisma.user.findFirst({
           where: {
             merchantId: newOrder.merchantId,
-            role: 'MERCHANT_ADMIN'
+            role: "MERCHANT_ADMIN",
           },
           select: {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
-        })
+            email: true,
+          },
+        });
 
-        console.log('🔍 Merchant user found:', merchantUser ? `${merchantUser.firstName} ${merchantUser.lastName} (ID: ${merchantUser.id})` : 'None')
+        console.log(
+          "🔍 Merchant user found:",
+          merchantUser
+            ? `${merchantUser.firstName} ${merchantUser.lastName} (ID: ${merchantUser.id})`
+            : "None"
+        );
 
-        const merchantName = merchantUser 
-          ? `${merchantUser.firstName} ${merchantUser.lastName}`.trim() 
-          : newOrder.merchant.businessName
+        const merchantName = merchantUser
+          ? `${merchantUser.firstName} ${merchantUser.lastName}`.trim()
+          : newOrder.merchant.businessName;
 
         // Format shipping address for email
-        const shippingAddr = typeof newOrder.shippingAddress === 'object' && newOrder.shippingAddress !== null
-          ? JSON.stringify(newOrder.shippingAddress, null, 2)
-          : String(newOrder.shippingAddress || '')
+        const shippingAddr =
+          typeof newOrder.shippingAddress === "object" &&
+          newOrder.shippingAddress !== null
+            ? JSON.stringify(newOrder.shippingAddress, null, 2)
+            : String(newOrder.shippingAddress || "");
 
         // Send confirmation email to customer
         if (newOrder.customerEmail) {
-          console.log('📧 Sending order confirmation to customer:', newOrder.customerEmail)
+          console.log(
+            "📧 Sending order confirmation to customer:",
+            newOrder.customerEmail
+          );
 
           await sendOrderConfirmationEmail({
             to: newOrder.customerEmail,
             customerName: newOrder.customerName,
             orderNumber: newOrder.orderNumber,
-            orderItems: newOrder.orderItems.map(item => ({
+            orderItems: newOrder.orderItems.map((item) => ({
               productName: item.product.name,
               sku: item.product.sku,
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
-              totalPrice: Number(item.totalPrice)
+              totalPrice: Number(item.totalPrice),
             })),
             orderValue: Number(newOrder.orderValue),
             deliveryFee: Number(newOrder.deliveryFee),
@@ -402,32 +521,36 @@ export const POST = withRole(
             merchantEmail: newOrder.merchant.businessEmail,
             paymentMethod: newOrder.paymentMethod || undefined,
             createdAt: newOrder.createdAt,
-            orderId: newOrder.id
-          })
+            orderId: newOrder.id,
+            trackingNumber: newOrder.trackingNumber as any,
+          });
 
-          console.log('✅ Customer confirmation email sent')
+          console.log("✅ Customer confirmation email sent");
         } else {
-          console.log('⚠️ No customer email provided')
+          console.log("⚠️ No customer email provided");
         }
 
         // Send notification email to merchant
-        const merchantEmail = newOrder.merchant.businessEmail
+        const merchantEmail = newOrder.merchant.businessEmail;
         if (merchantEmail) {
-          console.log('📧 Sending order notification to merchant:', merchantEmail)
+          console.log(
+            "📧 Sending order notification to merchant:",
+            merchantEmail
+          );
 
           await sendMerchantOrderNotificationEmail({
             to: merchantEmail,
             merchantName: merchantName,
             orderNumber: newOrder.orderNumber,
             customerName: newOrder.customerName,
-            customerEmail: newOrder.customerEmail || 'N/A',
+            customerEmail: newOrder.customerEmail || "N/A",
             customerPhone: newOrder.customerPhone,
-            orderItems: newOrder.orderItems.map(item => ({
+            orderItems: newOrder.orderItems.map((item) => ({
               productName: item.product.name,
               sku: item.product.sku,
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
-              totalPrice: Number(item.totalPrice)
+              totalPrice: Number(item.totalPrice),
             })),
             orderValue: Number(newOrder.orderValue),
             deliveryFee: Number(newOrder.deliveryFee),
@@ -435,44 +558,53 @@ export const POST = withRole(
             shippingAddress: shippingAddr,
             paymentMethod: newOrder.paymentMethod || undefined,
             createdAt: newOrder.createdAt,
-            orderId: newOrder.id
-          })
+            orderId: newOrder.id,
+            trackingNumber: newOrder.trackingNumber as any,
+          });
 
-          console.log('✅ Merchant notification email sent')
+          console.log("✅ Merchant notification email sent");
         }
 
         // Create platform notification for merchant
         if (merchantUser?.id) {
-          const totalAmount = Number(newOrder.totalAmount)
-          const formattedAmount = new Intl.NumberFormat('en-NG', {
-            style: 'currency',
-            currency: 'NGN'
-          }).format(totalAmount)
+          const totalAmount = Number(newOrder.totalAmount);
+          const formattedAmount = new Intl.NumberFormat("en-NG", {
+            style: "currency",
+            currency: "NGN",
+          }).format(totalAmount);
 
-          console.log('🔔 Creating platform notification for merchant user ID:', merchantUser.id)
+          console.log(
+            "🔔 Creating platform notification for merchant user ID:",
+            merchantUser.id
+          );
 
           await notificationService.createNotification({
             recipientId: merchantUser.id,
             title: `New Order: ${newOrder.orderNumber}`,
             message: `You have received a new order from ${newOrder.customerName} for ${formattedAmount}`,
-            type: 'ORDER_CREATED',
+            type: "ORDER_CREATED",
             metadata: {
               orderId: newOrder.id,
               orderNumber: newOrder.orderNumber,
               customerName: newOrder.customerName,
-              totalAmount: newOrder.totalAmount
-            }
-          })
+              totalAmount: newOrder.totalAmount,
+            },
+          });
 
-          console.log('✅ Platform notification created for merchant user:', merchantUser.email)
+          console.log(
+            "✅ Platform notification created for merchant user:",
+            merchantUser.email
+          );
         } else {
-          console.log('⚠️ No merchant user found, skipping platform notification')
+          console.log(
+            "⚠️ No merchant user found, skipping platform notification"
+          );
         }
       } catch (emailError) {
-        console.error('❌ Error sending emails/notifications:', emailError)
+        console.error("❌ Error sending emails/notifications:", emailError);
         if (emailError instanceof Error) {
-          console.error('Error details:', emailError.message)
-          console.error('Stack:', emailError.stack)
+          console.error("Error details:", emailError.message);
+          console.error("Stack:", emailError.stack);
         }
         // Don't fail the order creation if emails/notifications fail
       }

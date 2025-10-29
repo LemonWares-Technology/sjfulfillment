@@ -6,6 +6,8 @@ import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatCurrency, formatDate, formatDateTime } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { 
   ArrowLeftIcon,
   MapPinIcon,
@@ -73,6 +75,7 @@ const ORDER_STATUSES = [
 ]
 
 export default function OrderDetailsPage() {
+  const { currency: selectedCurrency } = useCurrency();
   const { user } = useAuth()
   const { get, loading } = useApi()
   const router = useRouter()
@@ -80,6 +83,9 @@ export default function OrderDetailsPage() {
   const orderId = params.id as string
 
   const [order, setOrder] = useState<Order | null>(null)
+  const [editingOrderNumber, setEditingOrderNumber] = useState<string>('')
+  const [isEditingOrderNumber, setIsEditingOrderNumber] = useState(false)
+  const [orderNumberError, setOrderNumberError] = useState<string>('')
 
   useEffect(() => {
     if (orderId) {
@@ -90,7 +96,8 @@ export default function OrderDetailsPage() {
   const fetchOrder = async () => {
     try {
       const data = await get<Order>(`/api/orders/${orderId}`)
-      setOrder(data)
+  setOrder(data)
+  setEditingOrderNumber(data.orderNumber)
     } catch (error) {
       console.error('Failed to fetch order:', error)
       router.push('/orders')
@@ -170,22 +177,22 @@ export default function OrderDetailsPage() {
               
               {order.trackingNumber && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700">Tracking Number</label>
-                  <p className="mt-1 text-sm text-gray-900 font-mono">{order.trackingNumber}</p>
+                  <label className="block text-sm font-medium text-white">Tracking Number</label>
+                  <p className="mt-1 text-sm text-white font-mono">{order.trackingNumber}</p>
                 </div>
               )}
 
               {order.expectedDelivery && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
-                  <p className="mt-1 text-sm text-gray-900">{formatDate(order.expectedDelivery)}</p>
+                  <label className="block text-sm font-medium text-white">Expected Delivery</label>
+                  <p className="mt-1 text-sm text-white">{formatDate(order.expectedDelivery)}</p>
                 </div>
               )}
 
               {order.deliveredAt && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Delivered At</label>
-                  <p className="mt-1 text-sm text-gray-900">{formatDate(order.deliveredAt)}</p>
+                  <label className="block text-sm font-medium text-white">Delivered At</label>
+                  <p className="mt-1 text-sm text-white">{formatDate(order.deliveredAt)}</p>
                 </div>
               )}
             </div>
@@ -203,19 +210,9 @@ export default function OrderDetailsPage() {
                         phone: order.customerPhone,
                         email: order.customerEmail
                       }}
-                      type="audio"
                       orderNumber={order.orderNumber}
                     />
-                    <CustomerCallButton
-                      customer={{
-                        id: `customer-${order.customerEmail}`,
-                        name: order.customerName,
-                        phone: order.customerPhone,
-                        email: order.customerEmail
-                      }}
-                      type="video"
-                      orderNumber={order.orderNumber}
-                    />
+                   
                   </div>
                 )}
               </div>
@@ -281,14 +278,14 @@ export default function OrderDetailsPage() {
                     <div className="flex-1">
                       <h3 className="text-sm font-medium text-white">{item.product.name}</h3>
                       <p className="text-sm text-white">SKU: {item.product.sku}</p>
-                      <p className="text-sm text-white">Unit Price: {formatCurrency(item.product.unitPrice)}</p>
+                      <p className="text-sm text-white">Unit Price: {formatCurrency(item.product.unitPrice, selectedCurrency)}</p>
                     </div>
                     <div className="text-right">
                       <div className="text-sm text-white">
                         Qty: {item.quantity}
                       </div>
                       <div className="text-sm font-medium text-white">
-                        {formatCurrency(item.product.unitPrice * item.quantity)}
+                        {formatCurrency(item.product.unitPrice * item.quantity, selectedCurrency)}
                       </div>
                     </div>
                   </div>
@@ -347,15 +344,15 @@ export default function OrderDetailsPage() {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-white">Subtotal:</span>
-                  <span className="text-white">{formatCurrency(order.totalAmount - order.deliveryFee)}</span>
+                  <span className="text-white">{formatCurrency(order.totalAmount - order.deliveryFee, selectedCurrency)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-white">Delivery Fee:</span>
-                  <span className="text-white">{formatCurrency(order.deliveryFee)}</span>
+                  <span className="text-white">{formatCurrency(order.deliveryFee, selectedCurrency)}</span>
                 </div>
                 <div className="border-t pt-3 flex justify-between font-medium text-lg">
                   <span className="text-white">Total:</span>
-                  <span className="text-white">{formatCurrency(order.totalAmount)}</span>
+                  <span className="text-white">{formatCurrency(order.totalAmount, selectedCurrency)}</span>
                 </div>
               </div>
             </div>
@@ -366,7 +363,67 @@ export default function OrderDetailsPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-white">Order Number</label>
-                  <p className="mt-1 text-sm text-white font-mono">{order.orderNumber}</p>
+                  {user?.role === 'SJFS_ADMIN' ? (
+                    <div className="flex items-center space-x-2">
+                      {isEditingOrderNumber ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingOrderNumber}
+                            onChange={e => setEditingOrderNumber(e.target.value)}
+                            className="px-2 py-1 rounded border border-gray-300 text-black font-mono"
+                          />
+                          <button
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded"
+                            onClick={async () => {
+                              setOrderNumberError('')
+                              if (!editingOrderNumber.trim()) {
+                                setOrderNumberError('Order number cannot be empty.')
+                                return
+                              }
+                              try {
+                                const res = await fetch(`/api/orders/${orderId}`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ orderNumber: editingOrderNumber, status: order.status }),
+                                  credentials: 'include'
+                                })
+                                if (!res.ok) {
+                                  const data = await res.json()
+                                  setOrderNumberError(data?.error || 'Failed to update order number.')
+                                } else {
+                                  toast.success('Order number updated!')
+                                  setIsEditingOrderNumber(false)
+                                  fetchOrder()
+                                }
+                              } catch (err) {
+                                setOrderNumberError('Network error. Try again.')
+                              }
+                            }}
+                          >Save</button>
+                          <button
+                            className="bg-gray-400 hover:bg-gray-500 text-white px-2 py-1 rounded"
+                            onClick={() => {
+                              setIsEditingOrderNumber(false)
+                              setEditingOrderNumber(order.orderNumber)
+                              setOrderNumberError('')
+                            }}
+                          >Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="mt-1 text-sm text-white font-mono">{order.orderNumber}</span>
+                          <button
+                            className="ml-2 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded"
+                            onClick={() => setIsEditingOrderNumber(true)}
+                          >Edit</button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm text-white font-mono">{order.orderNumber}</p>
+                  )}
+                  {orderNumberError && <p className="text-red-500 text-xs mt-1">{orderNumberError}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white">Order Date</label>
@@ -420,21 +477,10 @@ export default function OrderDetailsPage() {
                       phone: order.customerPhone,
                       email: order.customerEmail
                     }}
-                    type="audio"
                     orderNumber={order.orderNumber}
                     className="flex-1"
                   />
-                  <CustomerCallButton
-                    customer={{
-                      id: `customer-${order.customerEmail}`,
-                      name: order.customerName,
-                      phone: order.customerPhone,
-                      email: order.customerEmail
-                    }}
-                    type="video"
-                    orderNumber={order.orderNumber}
-                    className="flex-1"
-                  />
+                 
                 </div>
                 <p className="text-sm text-white mt-2">
                   Click to start an audio or video call with {order.customerName}

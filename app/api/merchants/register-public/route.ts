@@ -3,119 +3,78 @@ import { createErrorResponse, createResponse } from '@/app/lib/api-utils'
 import { prisma } from '@/app/lib/prisma'
 import { createMerchantSchema } from '@/app/lib/validations'
 import { hashPassword } from '@/app/lib/password'
-import { sendWelcomeMerchantEmail } from '@/app/lib/email'
+import { sendMerchantVerificationEmail } from '@/app/lib/email'
 
 // POST /api/merchants/register-public
 // Public endpoint for merchants to register themselves
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
-    // Parse merchant data
-    const merchantData = createMerchantSchema.parse(body.merchant)
-    
-    // Parse user data
-    const userData = {
-      firstName: body.user.firstName,
-      lastName: body.user.lastName,
-      email: body.user.email,
-      phone: body.user.phone,
-      password: body.user.password,
-      role: 'MERCHANT_ADMIN' as const
+    const { email, password } = body
+
+    if (!email || !password) {
+      return createErrorResponse('Email and password are required', 400)
     }
 
-    // Validate required fields
-    if (!userData.firstName || !userData.lastName || !userData.email || !userData.password) {
-      return createErrorResponse('All user fields are required', 400)
-    }
-
-    // Check if merchant already exists
+    // Check if merchant or user already exists
     const existingMerchant = await prisma.merchant.findFirst({
-      where: {
-        OR: [
-          { businessEmail: merchantData.businessEmail },
-          ...(merchantData.cacNumber ? [{ cacNumber: merchantData.cacNumber }] : [])
-        ]
-      },
-      select: {
-        id: true,
-        businessEmail: true,
-        cacNumber: true,
-        businessName: true,
-        isActive: true
-      }
+      where: { businessEmail: email },
+      select: { id: true, businessEmail: true, isActive: true }
     })
-
     if (existingMerchant) {
-      console.error('Merchant already exists:', {
-        id: existingMerchant.id,
-        email: existingMerchant.businessEmail,
-        cacNumber: existingMerchant.cacNumber,
-        businessName: existingMerchant.businessName,
-        isActive: existingMerchant.isActive
-      })
-      return createErrorResponse(
-        `Merchant with this email${merchantData.cacNumber ? ' or CAC number' : ''} already exists. If you recently deleted this merchant, the data may not be fully purged yet.`, 
-        400
-      )
+      return createErrorResponse('Merchant with this email already exists.', 400)
     }
 
-    // Check if user already exists
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: userData.email },
-          ...(userData.phone ? [{ phone: userData.phone }] : [])
-        ]
-      },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        isActive: true
-      }
+      where: { email },
+      select: { id: true, email: true, isActive: true }
     })
-
     if (existingUser) {
-      console.error('User already exists:', {
-        id: existingUser.id,
-        email: existingUser.email,
-        phone: existingUser.phone,
-        isActive: existingUser.isActive
-      })
-      return createErrorResponse(
-        'User with this email or phone already exists. If you recently deleted this user, the data may not be fully purged yet.',
-        400
-      )
+      return createErrorResponse('User with this email already exists.', 400)
     }
 
     // Hash password
-    const hashedPassword = await hashPassword(userData.password)
+    const hashedPassword = await hashPassword(password)
+
+    // Generate verification token
+    const verificationToken = Math.random().toString(36).substring(2) + Date.now().toString(36)
 
     // Create merchant and user in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create merchant
+      // Create merchant (inactive, with token)
       const newMerchant = await tx.merchant.create({
         data: {
-          ...merchantData,
-          onboardingStatus: 'APPROVED' // Auto-approve for payment-first flow
+          businessName: '',
+          businessEmail: email,
+          businessPhone: '',
+          contactPerson: '',
+          address: '',
+          city: '',
+          state: '',
+          country: 'Nigeria',
+          cacNumber: '',
+          taxId: '',
+          isActive: false,
+          verificationToken,
+          onboardingStatus: 'PENDING',
         }
       })
 
-      // Create user
+      // Create user (minimal info)
       const newUser = await tx.user.create({
         data: {
-          ...userData,
+          email,
           password: hashedPassword,
+          firstName: '',
+          lastName: '',
+          phone: '',
+          role: 'MERCHANT_ADMIN',
           merchantId: newMerchant.id,
-          emailVerified: new Date() // Auto-verify for self-registration
+          isActive: false
         },
         select: {
           id: true,
-          firstName: true,
-          lastName: true,
           email: true,
-          phone: true,
           role: true,
           merchantId: true,
           createdAt: true
@@ -123,44 +82,21 @@ export async function POST(request: NextRequest) {
       })
 
       return { merchant: newMerchant, user: newUser }
-    }, {
-      timeout: 10000 // Increase timeout to 10 seconds
-    })
+    }, { timeout: 10000 })
 
-    // Log the registration
-    await prisma.auditLog.create({
-      data: {
-        user: { connect: { id: result.user.id } },
-        action: 'MERCHANT_SELF_REGISTRATION',
-        entityType: 'merchants',
-        entityId: result.merchant.id,
-        newValues: {
-          merchant: merchantData,
-          user: { ...userData, password: '[HIDDEN]' }
-        }
-      }
-    })
-
-    // Send welcome email (without password for security)
-    sendWelcomeMerchantEmail({
-      to: result.user.email,
-      businessName: result.merchant.businessName,
-      firstName: result.user.firstName || undefined,
-      email: result.user.email
-    }).catch(err => {
-      console.error('Failed to send welcome email to merchant:', err)
+    // Send verification email
+    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://sjfulfillment.com'}/verify?token=${verificationToken}`
+    await sendMerchantVerificationEmail({
+      to: email,
+      verificationUrl,
+      businessName: ''
     })
 
     return createResponse({
-      merchant: result.merchant,
-      user: result.user,
-      message: 'Registration successful. Please select a service plan and complete payment to access the platform.'
+      message: 'Registration successful. Please check your email to verify your account.'
     }, 201, 'Merchant registered successfully')
   } catch (error) {
     console.error('Merchant registration error:', error)
-    if (error instanceof Error && error.message.includes('validation')) {
-      return createErrorResponse('Invalid input data', 400)
-    }
     return createErrorResponse('Registration failed', 500)
   }
 }

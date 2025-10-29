@@ -56,6 +56,11 @@ export const GET = withRole(
                 },
               },
             },
+            // Include active subscriptions so we can surface subscription discountPercent as merchant.discount
+            subscriptions: {
+              where: { status: 'ACTIVE' },
+              select: { discountPercent: true },
+            },
             billingRecords: {
               select: {
                 amount: true,
@@ -85,6 +90,8 @@ export const GET = withRole(
         const overdueCharges = allCharges.filter(r => r.status === 'OVERDUE').reduce((sum, r) => sum + Number(r.amount), 0);
         return {
           ...merchant,
+             // Expose the top-level discount field for designated merchants
+             discount: merchant.discount ? Number(merchant.discount) : 0,
           accumulatedCharges: {
             total: totalCharges,
             paid: paidCharges,

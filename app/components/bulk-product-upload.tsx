@@ -4,6 +4,8 @@ import { useState, useRef } from 'react'
 import { useApi } from '@/app/lib/use-api'
 import { useAuth } from '@/app/lib/auth-context'
 import { formatCurrency } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { DocumentArrowUpIcon, DocumentArrowDownIcon, XMarkIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
 interface ProductRow {
@@ -36,6 +38,7 @@ interface BulkProductUploadProps {
 }
 
 export default function BulkProductUpload({ isOpen, onClose, onSuccess }: BulkProductUploadProps) {
+  const { currency: selectedCurrency } = useCurrency();
   const { user } = useAuth()
   const { post } = useApi()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -230,7 +233,7 @@ Adidas Ultraboost,Premium running shoes,Footwear,30000,350,31,13,11,80,15,ADIDAS
                           <tr key={index}>
                             <td className="px-3 py-2 text-sm text-gray-900">{row.name}</td>
                             <td className="px-3 py-2 text-sm text-gray-900">{row.category}</td>
-                            <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(row.unitPrice)}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900">{formatCurrency(row.unitPrice, selectedCurrency)}</td>
                             <td className="px-3 py-2 text-sm text-gray-900">{row.weight}g</td>
                             <td className="px-3 py-2 text-sm text-gray-900">{row.initialStock || 0}</td>
                           </tr>

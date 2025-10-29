@@ -5,6 +5,8 @@ import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { EyeIcon, CheckIcon, XMarkIcon, PlusIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
@@ -57,6 +59,7 @@ interface OrderSummary {
 }
 
 export default function ReturnsPage() {
+  const { currency: selectedCurrency } = useCurrency();
   const { user } = useAuth()
   const { get, post, put, loading } = useApi()
   const [returns, setReturns] = useState<ReturnRequest[]>([])
@@ -222,19 +225,17 @@ export default function ReturnsPage() {
         mode="block"
         fallbackMessage={`Subscribe to "Returns Management" to access and process customer return requests.`}
       >
-        <div className="px-4 py-6 sm:px-0">
+        <div className="px-2 py-6 sm:px-0">
           <div className="mb-8">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-[#f08c17]">Returns Management</h1>
-                <p className="mt-2 text-white/90">
-                  Process customer return requests and refunds
-                </p>
+                <p className="mt-2 text-white/90">Process customer return requests and refunds</p>
               </div>
-              <div>
+              <div className="flex flex-row sm:flex-row gap-3 sm:gap-3 w-full sm:w-auto justify-end">
                 <button
                   onClick={() => setIsCreateOpen(true)}
-                  className="inline-flex items-center bg-[#f08c17] hover:bg-orange-500 text-white font-medium py-2 px-4 rounded-[5px] shadow-md"
+                  className="inline-flex items-center bg-[#f08c17] hover:bg-orange-500 text-white font-medium py-2 px-4 rounded-[5px] shadow-md w-full sm:w-auto"
                 >
                   <PlusIcon className="h-5 w-5 mr-2" />
                   Create Return Request
@@ -273,7 +274,7 @@ export default function ReturnsPage() {
                 {selectedOrder ? (
                   <div className="mt-3 p-3 rounded-md bg-green-50 border border-green-200">
                     <div className="text-sm text-green-800 font-medium">Selected: {selectedOrder.orderNumber}</div>
-                    <div className="text-xs text-green-700">{selectedOrder.customerName} • {formatCurrency(selectedOrder.totalAmount)}</div>
+                    <div className="text-xs text-green-700">{selectedOrder.customerName} • {formatCurrency(selectedOrder.totalAmount, selectedCurrency)}</div>
                     <button className="mt-2 text-xs text-green-700 underline" onClick={() => setSelectedOrder(null)}>Change</button>
                   </div>
                 ) : (
@@ -288,7 +289,7 @@ export default function ReturnsPage() {
                         >
                           <div className="flex justify-between text-sm">
                             <span className="font-medium text-gray-900">{o.orderNumber}</span>
-                            <span className="text-gray-700">{formatCurrency(o.totalAmount)}</span>
+                            <span className="text-gray-700">{formatCurrency(o.totalAmount, selectedCurrency)}</span>
                           </div>
                           <div className="text-xs text-gray-600">{o.customerName}</div>
                         </button>
@@ -467,7 +468,7 @@ export default function ReturnsPage() {
                         —
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white/90">
-                        {formatCurrency(returnItem.approvedAmount || returnItem.refundAmount || 0)}
+                        {formatCurrency(returnItem.approvedAmount || returnItem.refundAmount || 0, selectedCurrency)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(returnItem.status)} bg-white/20 text-[#f08c17]`}> 

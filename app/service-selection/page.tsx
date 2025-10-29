@@ -1,5 +1,8 @@
 'use client'
 
+// Prevent static prerendering, force dynamic rendering for client hooks
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth-context'
@@ -7,6 +10,8 @@ import { useApi } from '@/app/lib/use-api'
 import DashboardLayout from '@/app/components/dashboard-layout'
 import { CheckCircleIcon, XCircleIcon, CreditCardIcon } from '@heroicons/react/24/outline'
 import { formatCurrency } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 
 /**
  * Service Selection Page
@@ -53,6 +58,7 @@ function ServiceSelectionContent() {
   const searchParams: any = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const { get, post, loading } = useApi()
+  const { currency: selectedCurrency } = useCurrency();
   const [services, setServices] = useState<Service[]>([])
   const [selectedServices, setSelectedServices] = useState<{[key: string]: SelectedService}>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -228,7 +234,7 @@ function ServiceSelectionContent() {
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-amber-500">
-                              {formatCurrency(service.price)}
+                              {formatCurrency(service.price, selectedCurrency)}
                             </div>
                             <div className="text-xs text-gray-400">per day</div>
                           </div>
@@ -283,7 +289,7 @@ function ServiceSelectionContent() {
                         </div>
                         <div className="text-right">
                           <div className="font-medium text-amber-500">
-                            {formatCurrency(service.priceAtSelection)}
+                            {formatCurrency(service.priceAtSelection, selectedCurrency)}
                           </div>
                         </div>
                       </div>
@@ -296,7 +302,7 @@ function ServiceSelectionContent() {
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-lg font-semibold text-white">Total:</span>
                   <span className="text-lg font-bold text-amber-500">
-                    {formatCurrency(calculateTotal())}
+                    {formatCurrency(calculateTotal(), selectedCurrency)}
                   </span>
                 </div>
 

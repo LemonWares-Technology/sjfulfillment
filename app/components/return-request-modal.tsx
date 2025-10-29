@@ -5,6 +5,13 @@ import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { useApi } from '@/app/lib/use-api'
 import { useNotifications } from '@/app/lib/notification-context'
 import { formatCurrency } from '@/app/lib/utils'
+// Add type for Return
+interface ExistingReturn {
+  id: string;
+  status: string;
+  reason: string;
+  createdAt: string;
+}
 
 interface OrderItem {
   id: string
@@ -49,7 +56,7 @@ interface ReturnRequestModalProps {
 }
 
 export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }: ReturnRequestModalProps) {
-  const { post, loading } = useApi()
+  const { post, loading, get } = useApi()
   const { addNotification } = useNotifications()
   const [formData, setFormData] = useState<ReturnRequest>({
     orderId: '',
@@ -58,6 +65,10 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
     notes: ''
   })
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+
+  // Track if a pending return exists
+  const [pendingReturn, setPendingReturn] = useState<ExistingReturn | null>(null)
+  const [checkingReturn, setCheckingReturn] = useState(false)
 
   useEffect(() => {
     if (order) {
@@ -72,6 +83,18 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
         })),
         notes: ''
       })
+      // Check for existing returns for this order
+      setCheckingReturn(true)
+      setPendingReturn(null)
+      get(`/api/returns?orderId=${order.id}`)
+        .then((data: any) => {
+          if (data && Array.isArray(data.returns)) {
+            // Find a return that is not resolved (pending/processing)
+            const found = data.returns.find((r: any) => r.status === 'PENDING' || r.status === 'PROCESSING')
+            if (found) setPendingReturn(found)
+          }
+        })
+        .finally(() => setCheckingReturn(false))
     }
   }, [order])
 
@@ -200,12 +223,11 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
                 <option value="">Select a reason</option>
-                <option value="DEFECTIVE">Product is defective</option>
-                <option value="WRONG_ITEM">Wrong item received</option>
                 <option value="DAMAGED">Item arrived damaged</option>
-                <option value="NOT_AS_DESCRIBED">Not as described</option>
-                <option value="CHANGED_MIND">Changed mind</option>
-                <option value="SIZE_ISSUE">Size doesn't fit</option>
+                <option value="WRONG_ITEM">Wrong item received</option>
+                <option value="CUSTOMER_REJECTED">Customer rejected order</option>
+                <option value="NO_MONEY">Customer unable to pay</option>
+                <option value="QUALITY_ISSUE">Quality issue</option>
                 <option value="OTHER">Other</option>
               </select>
               {errors.reason && <p className="text-red-500 text-xs mt-1">{errors.reason}</p>}
@@ -235,7 +257,7 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
                           <h4 className="text-sm font-medium text-gray-900">{orderItem.product.name}</h4>
                           <p className="text-sm text-gray-500">SKU: {orderItem.product.sku}</p>
                           <p className="text-sm text-gray-500">Ordered: {orderItem.quantity} units</p>
-                          <p className="text-sm text-gray-500">Unit Price: {formatCurrency(orderItem.product.unitPrice)}</p>
+                          <p className="text-sm text-gray-500">Unit Price: {formatCurrency(Number(orderItem.product.unitPrice) || 0, 'NGN')}</p>
                         </div>
                       </div>
 
@@ -249,7 +271,11 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
                             min="0"
                             max={orderItem.quantity}
                             value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value) || 0)}
+                            onChange={(e) => {
+                              let val = parseInt(e.target.value) || 0;
+                              if (val > orderItem.quantity) val = orderItem.quantity;
+                              handleItemChange(index, 'quantity', val);
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
                           />
                           {errors[`items.${index}.quantity`] && (
@@ -293,10 +319,22 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
                       {item.quantity > 0 && (
                         <div className="mt-2 p-2 bg-amber-50 rounded-md">
                           <p className="text-sm text-amber-800">
-                            Refund Amount: {formatCurrency(item.quantity * orderItem.product.unitPrice)}
+                            Refund Amount: {formatCurrency((item.quantity * (Number(orderItem.product.unitPrice) || 0)), 'NGN')}
                           </p>
                         </div>
                       )}
+            {/* Total Refund Amount */}
+            <div className="bg-gray-100 p-4 rounded-lg mt-4">
+              <h4 className="text-md font-medium text-gray-900 mb-2">Total Refund Amount</h4>
+              <p className="text-lg font-bold text-amber-700">
+                {formatCurrency(formData.items.reduce((sum, item) => {
+                  const orderItem = order.orderItems.find(oi => oi.id === item.orderItemId)
+                  if (!orderItem) return sum
+                  const price = Number(orderItem.product.unitPrice) || 0;
+                  return sum + (item.quantity > 0 ? item.quantity * price : 0)
+                }, 0), 'NGN')}
+              </p>
+            </div>
                     </div>
                   )
                 })}
@@ -332,7 +370,7 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onSuccess }
                   }, 0))}
                 </p>
                 <p className="text-sm text-green-700 mt-1">
-                  This amount will be refunded to the customer once the return is processed.
+                  This amount will be refunded to the merchant once the return is processed.
                 </p>
               </div>
             )}

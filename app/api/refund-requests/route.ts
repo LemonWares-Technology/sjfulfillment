@@ -105,10 +105,10 @@ export const GET = withRole(['SJFS_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_STAFF', '
 // POST /api/refund-requests - Create new refund request
 export const POST = withRole(['MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (request: NextRequest, user: JWTPayload) => {
   try {
-    const { orderId, reason, description, requestedAmount } = await request.json()
+    const { orderId, reason, requestedAmount } = await request.json();
 
-    if (!orderId || !reason || !requestedAmount) {
-      return createErrorResponse('Order ID, reason, and requested amount are required', 400)
+    if (!orderId || !reason || requestedAmount === undefined || requestedAmount === null) {
+      return createErrorResponse('Order ID, reason, and requested amount are required', 400);
     }
 
     // Verify the order belongs to the merchant
@@ -117,10 +117,19 @@ export const POST = withRole(['MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (reques
         id: orderId,
         merchantId: user.merchantId
       }
-    })
+    });
 
     if (!order) {
-      return createErrorResponse('Order not found or access denied', 404)
+      return createErrorResponse('Order not found or access denied', 404);
+    }
+
+    // Validate requestedAmount
+    const requestedAmountNum = parseFloat(requestedAmount);
+    if (isNaN(requestedAmountNum) || requestedAmountNum <= 0) {
+      return createErrorResponse('Requested amount must be a valid number greater than zero', 400);
+    }
+    if (requestedAmountNum > parseFloat(order.totalAmount.toString())) {
+      return createErrorResponse('Requested amount cannot exceed the total order amount', 400);
     }
 
     // Check if there's already a pending refund request for this order
@@ -129,10 +138,10 @@ export const POST = withRole(['MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (reques
         orderId,
         status: 'PENDING'
       }
-    })
+    });
 
     if (existingRequest) {
-      return createErrorResponse('A pending refund request already exists for this order', 409)
+      return createErrorResponse('A pending refund request already exists for this order', 409);
     }
 
     // Create the refund request
@@ -141,8 +150,7 @@ export const POST = withRole(['MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (reques
         orderId,
         requestedBy: user.userId,
         reason,
-        description,
-        requestedAmount: parseFloat(requestedAmount),
+        requestedAmount: requestedAmountNum,
         status: 'PENDING'
       },
       include: {
@@ -161,7 +169,7 @@ export const POST = withRole(['MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (reques
           }
         }
       }
-    })
+    });
 
     // Create audit log
     await prisma.auditLog.create({
@@ -173,13 +181,13 @@ export const POST = withRole(['MERCHANT_ADMIN', 'MERCHANT_STAFF'], async (reques
         newValues: {
           orderId,
           reason,
-          requestedAmount,
+          requestedAmount: requestedAmountNum,
           status: 'PENDING'
         }
       }
-    })
+    });
 
-    return createResponse(refundRequest, 201, 'Refund request created successfully')
+    return createResponse(refundRequest, 201, 'Refund request created successfully');
   } catch (error) {
     console.error('Error creating refund request:', error)
     return createErrorResponse('Failed to create refund request', 500)

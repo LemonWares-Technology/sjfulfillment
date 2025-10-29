@@ -4,7 +4,15 @@ import { useAuth } from '@/app/lib/auth-context'
 import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState, useRef, Suspense } from 'react'
+// Add discount type
+type MerchantDiscount = {
+  amount: number // discount amount in currency
+  percentage: number // discount percentage
+  isActive: boolean
+}
 import { formatCurrency, formatDate } from '@/app/lib/utils'
+import { useCurrency } from '@/app/lib/currency-context';
+// Import useContext or pass selectedCurrency as prop if using context/provider
 import { useSearchParams } from 'next/navigation'
 import { 
   CheckIcon, 
@@ -69,6 +77,7 @@ interface PlanUpdateStatus {
  */
 
 function PlanManagementContent() {
+  const { currency: selectedCurrency } = useCurrency();
   const { get, post, put, loading } = useApi()
   const searchParams: any = useSearchParams() // Get query parameters for service highlighting
   const [services, setServices] = useState<Service[]>([])
@@ -76,13 +85,25 @@ function PlanManagementContent() {
   const [selectedServices, setSelectedServices] = useState<{[key: string]: SelectedService}>({})
   const [isUpdating, setIsUpdating] = useState(false)
   const [showComparison, setShowComparison] = useState(false)
+  const [discount, setDiscount] = useState<MerchantDiscount | null>(null)
   const [updateStatus, setUpdateStatus] = useState<PlanUpdateStatus | null>(null)
   const [highlightedService, setHighlightedService] = useState<string | null>(null) // Track which service to highlight
   const serviceRefs = useRef<{[key: string]: HTMLDivElement | null}>({}) // Refs for scrolling to services
 
   useEffect(() => {
     fetchData()
+    fetchDiscount()
   }, [])
+  // Fetch merchant discount info
+  const fetchDiscount = async () => {
+    try {
+      // Replace with your actual discount API endpoint
+      const discountData = await get<MerchantDiscount>('/api/merchant-services/discount')
+      setDiscount(discountData)
+    } catch (error) {
+      setDiscount(null)
+    }
+  }
 
   /**
    * Handle service highlighting from query parameters
@@ -154,14 +175,16 @@ function PlanManagementContent() {
       }
 
       // Initialize selected services state with current active subscriptions
-      // This allows users to see what they currently have and make changes
+      // Sync selectedServices prices with latest service prices
       const initialSelected: {[key: string]: SelectedService} = {}
       if (subscriptionsData) {
         subscriptionsData.forEach(sub => {
           if (sub.status === 'ACTIVE') {
+            // Use latest price from services list if available
+            const latestService = processedServices.find(s => s.id === sub.serviceId)
             initialSelected[sub.serviceId] = {
               serviceId: sub.serviceId,
-              price: Number(sub.priceAtSubscription)
+              price: latestService ? latestService.price : Number(sub.priceAtSubscription)
             }
           }
         })
@@ -198,18 +221,41 @@ function PlanManagementContent() {
     setSelectedServices(allServices)
   }
 
+  // Calculate original total
   const calculateTotal = () => {
     return Object.values(selectedServices).reduce((total, service) => {
       return total + service.price
     }, 0)
   }
 
+  // Calculate discounted total
+  const calculateDiscountedTotal = () => {
+    const total = calculateTotal()
+    if (discount && discount.isActive) {
+      if (discount.amount > 0) {
+        return Math.max(total - discount.amount, 0)
+      } else if (discount.percentage > 0) {
+        return Math.max(total * (1 - discount.percentage / 100), 0)
+      }
+    }
+    return total
+  }
+
   const calculateCurrentTotal = () => {
-    return currentSubscriptions
+    const total = currentSubscriptions
       .filter(sub => sub.status === 'ACTIVE')
       .reduce((total, sub) => {
         return total + (Number(sub.priceAtSubscription) * sub.quantity)
       }, 0)
+    // Apply discount to current plan if active
+    if (discount && discount.isActive) {
+      if (discount.amount > 0) {
+        return Math.max(total - discount.amount, 0)
+      } else if (discount.percentage > 0) {
+        return Math.max(total * (1 - discount.percentage / 100), 0)
+      }
+    }
+    return total
   }
 
   const getServiceStatus = (serviceId: string) => {
@@ -346,6 +392,21 @@ function PlanManagementContent() {
           </div>
         )}
 
+        {/* Discount Block */}
+        {discount && discount.isActive && (
+          <div className="mb-8 bg-white/20 border border-amber-400 rounded-[5px] p-4">
+            <div className="flex items-center">
+              <span className="text-lg font-bold text-[#f08c17] mr-4">Discount Applied</span>
+              <span className="text-white/90 mr-4">
+                {discount.amount > 0
+                  ? `₦${discount.amount.toLocaleString()} off`
+                  : `${discount.percentage}% off`}
+              </span>
+              <span className="text-white/70">Your daily cost reflects this discount.</span>
+            </div>
+          </div>
+        )}
+
         {/* Current Plan Summary */}
         <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white/30 overflow-hidden shadow rounded-[5px] backdrop-blur">
@@ -360,7 +421,16 @@ function PlanManagementContent() {
                       Current Daily Cost
                     </dt>
                     <dd className="text-lg font-medium text-white">
-                      {formatCurrency(calculateCurrentTotal())}
+                      {discount && discount.isActive ? (
+                        <span>
+                          <span className="line-through text-white/60 mr-2">{formatCurrency(currentSubscriptions
+                            .filter(sub => sub.status === 'ACTIVE')
+                            .reduce((total, sub) => total + (Number(sub.priceAtSubscription) * sub.quantity), 0), selectedCurrency)}</span>
+                          <span className="text-emerald-400">{formatCurrency(calculateCurrentTotal(), selectedCurrency)}</span>
+                        </span>
+                      ) : (
+                        formatCurrency(calculateCurrentTotal(), selectedCurrency)
+                      )}
                     </dd>
                   </dl>
                 </div>
@@ -380,7 +450,14 @@ function PlanManagementContent() {
                       New Daily Cost
                     </dt>
                     <dd className="text-lg font-medium text-white">
-                      {formatCurrency(calculateTotal())}
+                      {discount && discount.isActive ? (
+                        <span>
+                          <span className="line-through text-white/60 mr-2">{formatCurrency(calculateTotal(), selectedCurrency)}</span>
+                          <span className="text-emerald-400">{formatCurrency(calculateDiscountedTotal(), selectedCurrency)}</span>
+                        </span>
+                      ) : (
+                        formatCurrency(calculateTotal(), selectedCurrency)
+                      )}
                     </dd>
                   </dl>
                 </div>
@@ -400,14 +477,14 @@ function PlanManagementContent() {
                       Daily Difference
                     </dt>
                     <dd className={`text-lg font-medium ${
-                      calculateTotal() > calculateCurrentTotal() 
+                      calculateDiscountedTotal() > calculateCurrentTotal() 
                         ? 'text-rose-400' 
-                        : calculateTotal() < calculateCurrentTotal()
+                        : calculateDiscountedTotal() < calculateCurrentTotal()
                         ? 'text-emerald-400'
                         : 'text-white'
                     }`}>
-                      {calculateTotal() > calculateCurrentTotal() ? '+' : ''}
-                      {formatCurrency(calculateTotal() - calculateCurrentTotal())}
+                      {calculateDiscountedTotal() > calculateCurrentTotal() ? '+' : ''}
+                      {formatCurrency(calculateDiscountedTotal() - calculateCurrentTotal(), selectedCurrency)}
                     </dd>
                   </dl>
                 </div>
@@ -477,7 +554,7 @@ function PlanManagementContent() {
                               {service.description}
                             </p>
                             <div className="text-2xl font-bold text-[#f08c17]">
-                              {formatCurrency(service.price)}
+                              {formatCurrency(service.price, selectedCurrency)}
                               <span className="text-sm font-normal text-white/70">/day</span>
                             </div>
                           </div>
@@ -505,7 +582,7 @@ function PlanManagementContent() {
                         {currentSubscription && (
                           <div className="mb-4 p-3 bg-white/10 rounded-[5px] border border-white/10">
                             <div className="text-sm text-white/80">
-                              <div>Subscribed: {formatCurrency(Number(currentSubscription.priceAtSubscription))}/day</div>
+                              <div>Subscribed: {formatCurrency(Number(currentSubscription.priceAtSubscription), selectedCurrency)}/day</div>
                             </div>
                           </div>
                         )}
@@ -545,11 +622,11 @@ function PlanManagementContent() {
                     .map(sub => (
                       <div key={sub.id} className="flex justify-between text-sm text-white/90">
                         <span>{sub.service.name}</span>
-                        <span>{formatCurrency(Number(sub.priceAtSubscription))}/day</span>
+                        <span>{formatCurrency(Number(sub.priceAtSubscription), selectedCurrency)}/day</span>
                       </div>
                     ))}
                   <div className="border-t border-white/20 pt-2 font-medium text-white">
-                    Total: {formatCurrency(calculateCurrentTotal())}/day
+                    Total: {formatCurrency(calculateCurrentTotal(), selectedCurrency)}/day
                   </div>
                 </div>
               </div>
@@ -561,12 +638,19 @@ function PlanManagementContent() {
                     return (
                       <div key={service.serviceId} className="flex justify-between text-sm text-white/90">
                         <span>{serviceData?.name}</span>
-                        <span>{formatCurrency(service.price)}/day</span>
+                        <span>{formatCurrency(service.price, selectedCurrency)}/day</span>
                       </div>
                     )
                   })}
                   <div className="border-t border-white/20 pt-2 font-medium text-white">
-                    Total: {formatCurrency(calculateTotal())}/day
+                    Total: {discount && discount.isActive ? (
+                      <span>
+                        <span className="line-through text-white/60 mr-2">{formatCurrency(calculateTotal(), selectedCurrency)}</span>
+                        <span className="text-emerald-400">{formatCurrency(calculateDiscountedTotal(), selectedCurrency)}</span>
+                      </span>
+                    ) : (
+                      formatCurrency(calculateTotal(), selectedCurrency)
+                    )}/day
                   </div>
                 </div>
               </div>
@@ -578,10 +662,10 @@ function PlanManagementContent() {
         <div className="mt-8 flex justify-end">
           <button
             onClick={handleUpdatePlan}
-             disabled={
+            disabled={
               isUpdating || 
               loading || 
-              calculateTotal() === calculateCurrentTotal() ||
+              calculateDiscountedTotal() === calculateCurrentTotal() ||
                (!!updateStatus && !updateStatus.canUpdate)
             }
             className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white px-6 py-3 rounded-[5px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"

@@ -83,10 +83,10 @@ export const POST = withRole(
           return createErrorResponse('Merchant ID is required for warehouse staff', 400)
         }
       } else {
-        merchantId = user.merchantId
-        if (!merchantId) {
+        if (!user.merchantId) {
           return createErrorResponse('Merchant ID is required', 400)
         }
+        merchantId = user.merchantId as string
       }
 
       // Get merchant's primary warehouse for SKU generation and stock creation
@@ -107,7 +107,7 @@ export const POST = withRole(
 
       // Process each record
       for (let i = 0; i < records.length; i++) {
-        const record = records[i]
+  const record = records[i] as Record<string, string>
         const rowNumber = i + 2 // +2 because of header and 0-based index
 
         try {
@@ -152,12 +152,13 @@ export const POST = withRole(
           }
 
           // Check if SKU already exists
+          // Check if SKU already exists for this merchant
           const existingProduct = await prisma.product.findUnique({
-            where: { sku }
+            where: { sku_merchantId: { sku, merchantId } }
           })
 
           if (existingProduct) {
-            throw new Error(`Product with SKU "${sku}" already exists`)
+            throw new Error(`Product with SKU "${sku}" already exists for this merchant`)
           }
 
           // Prepare dimensions
