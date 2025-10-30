@@ -264,15 +264,6 @@ export default function ProductsPage() {
                 </button>
               </ServiceGateGroup>
               <button
-                onClick={() => fetchProducts(1)}
-                className="border-2 border-blue-500 text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
-              >
-                <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
-              <button
                 onClick={() => setShowExportModal(true)}
                 className="border-2 border-amber-500 text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-[5px] flex items-center w-full sm:w-auto"
               >
@@ -470,7 +461,10 @@ export default function ProductsPage() {
           isOpen={showProductModal}
           onClose={handleCloseModal}
           product={editingProduct}
-          onSave={handleSaveProduct}
+          onSave={() => {
+            handleSaveProduct();
+            fetchProducts(1); // Auto-refresh after product creation
+          }}
         />
 
         {/* Confirm Delete Modal */}
@@ -502,8 +496,8 @@ export default function ProductsPage() {
           isOpen={showBulkUpload}
           onClose={() => setShowBulkUpload(false)}
           onSuccess={() => {
-            fetchProducts(1) // Reset to page 1 and refresh
-            setShowBulkUpload(false)
+            fetchProducts(1); // Auto-refresh after bulk product creation
+            setShowBulkUpload(false);
           }}
         />
 
