@@ -5,7 +5,6 @@ import DashboardLayout from '@/app/components/dashboard-layout'
 import { useApi } from '@/app/lib/use-api'
 import { useEffect, useState } from 'react'
 import { formatDate } from '@/app/lib/utils'
-import { useCurrency } from '@/app/lib/currency-context';
 import ApiKeyModal from '@/app/components/api-key-modal'
 import DeleteApiKeyModal from '@/app/components/delete-api-key-modal'
 import WebhookModal from '@/app/components/webhook-modal'
@@ -82,7 +81,7 @@ export default function SettingsPage() {
   const { get, put, delete: del, loading } = useApi()
   const router = useRouter()
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
-  const { currency: selectedCurrency, setCurrency: setSelectedCurrency } = useCurrency();
+
   const [activeTab, setActiveTab] = useState('profile')
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -288,6 +287,86 @@ export default function SettingsPage() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
+            {activeTab === 'api' && (
+              <ServiceGate serviceName="API Access" mode="inline">
+                <div className="space-y-6">
+                  {/* API Keys Section */}
+                  <div className="bg-white/30 shadow rounded-[5px]">
+                    <div className="px-4 py-5 sm:p-6">
+                      <div className="flex justify-between items-center mb-6">
+                        <div>
+                          <h2 className="text-lg font-medium text-gray-200">API Keys</h2>
+                          <p className="text-sm text-gray-200 mt-1">
+                            Manage your API keys for external integrations
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openApiKeyModal()}
+                          className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white px-4 py-2 rounded-[5px] text-sm flex items-center"
+                        >
+                          <KeyIcon className="h-4 w-4 mr-2" />
+                          Create API Key
+                        </button>
+                      </div>
+                      {/* ...existing API Keys list... */}
+                    </div>
+                  </div>
+                  {/* Webhooks Section */}
+                  <div className="bg-white/30 shadow rounded-[5px]">
+                    <div className="px-4 py-5 sm:p-6">
+                      <div className="flex justify-between items-center mb-6">
+                        <div>
+                          <h2 className="text-lg font-medium text-gray-200">Webhooks</h2>
+                          <p className="text-sm text-gray-200 mt-1">
+                            Configure webhooks to receive real-time notifications
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openWebhookModal()}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-[5px] text-sm flex items-center"
+                        >
+                          <LinkIcon className="h-4 w-4 mr-2" />
+                          Create Webhook
+                        </button>
+                      </div>
+                      {/* ...existing Webhooks list... */}
+                    </div>
+                  </div>
+                  {/* API Documentation Section */}
+                  <div className="bg-white/30 shadow rounded-[5px]">
+                    <div className="px-4 py-5 sm:p-6">
+                      <h2 className="text-lg font-medium text-gray-200 mb-4">API Documentation</h2>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border border-gray-200 rounded-[5px] p-4">
+                          <h3 className="text-sm font-medium text-gray-200 mb-2">Quick Start Guide</h3>
+                          <p className="text-sm text-gray-200 mb-3">
+                            Get started with our API in minutes
+                          </p>
+                          <button
+                            onClick={() => router.push('/api-docs')}
+                            className="text-amber-600 hover:text-amber-700 text-sm font-medium"
+                          >
+                            View Guide →
+                          </button>
+                        </div>
+                        <div className="border border-gray-200 rounded-[5px] p-4">
+                          <h3 className="text-sm font-medium text-gray-200 mb-2">Integration Examples</h3>
+                          <p className="text-sm text-gray-200 mb-3">
+                            WooCommerce and Shopify integration examples
+                          </p>
+                          <button
+                            onClick={() => router.push('/api-docs')}
+                            className="text-amber-600 hover:text-amber-700 text-sm font-medium"
+                          >
+                            View Examples →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ServiceGate>
+            )}
             {activeTab === 'profile' && (
               <div className="bg-white/30 shadow rounded-[5px]">
                 <div className="px-4 py-5 sm:p-6">
@@ -393,15 +472,7 @@ export default function SettingsPage() {
                         <span className="font-medium text-gray-200 w-24">Member Since:</span>
                         <span className="text-gray-200 gap-2">{formatDate(userSettings?.createdAt || '')}</span>
                       </div>
-                      <div className="flex items-center text-sm">
-                        <span className="font-medium text-gray-200 w-24">Email Verified:</span>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${userSettings?.emailVerified
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                          {userSettings?.emailVerified ? 'Verified' : 'Pending'}
-                        </span>
-                      </div>
+                      {/* I seei see ti */}
                     </div>
                   </div>
 

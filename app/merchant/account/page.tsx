@@ -190,28 +190,56 @@ export default function MerchantAccountPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Business Name
-                    </label>
-                    <p className="text-white/90 font-bold">{merchantData?.businessName || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Business Name</label>
+                    {editingMerchant ? (
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={merchantForm.businessName || ''}
+                        onChange={e => setMerchantForm({ ...merchantForm, businessName: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{merchantData?.businessName || '-'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Business Email
-                    </label>
-                    <p className="text-white/90 font-bold">{merchantData?.businessEmail || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Business Email</label>
+                    {editingMerchant ? (
+                      <input
+                        type="email"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={merchantForm.businessEmail || ''}
+                        onChange={e => setMerchantForm({ ...merchantForm, businessEmail: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{merchantData?.businessEmail || '-'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Business Phone
-                    </label>
-                    <p className="text-white/90 font-bold">{merchantData?.businessPhone || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Business Phone</label>
+                    {editingMerchant ? (
+                      <input
+                        type="tel"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={merchantForm.businessPhone || ''}
+                        onChange={e => setMerchantForm({ ...merchantForm, businessPhone: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{merchantData?.businessPhone || '-'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Contact Person
-                    </label>
-                    <p className="text-white/90 font-bold">{merchantData?.contactPerson || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Contact Person</label>
+                    {editingMerchant ? (
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={merchantForm.contactPerson || ''}
+                        onChange={e => setMerchantForm({ ...merchantForm, contactPerson: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{merchantData?.contactPerson || '-'}</p>
+                    )}
                   </div>
                 </div>
 
@@ -325,28 +353,56 @@ export default function MerchantAccountPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      First Name
-                    </label>
-                    <p className="text-white/90 font-bold">{userData?.firstName || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">First Name</label>
+                    {editingUser ? (
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={userForm.firstName || ''}
+                        onChange={e => setUserForm({ ...userForm, firstName: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{userData?.firstName || '-'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Last Name
-                    </label>
-                    <p className="text-white/90 font-bold">{userData?.lastName || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Last Name</label>
+                    {editingUser ? (
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={userForm.lastName || ''}
+                        onChange={e => setUserForm({ ...userForm, lastName: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{userData?.lastName || '-'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Email Address
-                    </label>
-                    <p className="text-white/90 font-bold">{userData?.email || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Email Address</label>
+                    {editingUser ? (
+                      <input
+                        type="email"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={userForm.email || ''}
+                        onChange={e => setUserForm({ ...userForm, email: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{userData?.email || '-'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mb-1">
-                      Phone Number
-                    </label>
-                    <p className="text-white/90 font-bold">{userData?.phone || '-'}</p>
+                    <label className="block text-sm font-medium text-white/90 mb-1">Phone Number</label>
+                    {editingUser ? (
+                      <input
+                        type="tel"
+                        className="w-full px-3 py-2 rounded bg-white/80 text-black"
+                        value={userForm.phone || ''}
+                        onChange={e => setUserForm({ ...userForm, phone: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-white/90 font-bold">{userData?.phone || '-'}</p>
+                    )}
                   </div>
                 </div>
 

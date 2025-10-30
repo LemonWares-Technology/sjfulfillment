@@ -37,7 +37,7 @@ export default function NetworkOfflineModal() {
         <div className="mb-6">
           <svg width="72" height="72" fill="none" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" fill="#f08c17" opacity="0.15" />
-            <path fill="#f08c17" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            <path fill="#f08c17" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
           </svg>
         </div>
         <h2 className="text-3xl font-bold text-amber-500 mb-3 drop-shadow">No Internet Connection</h2>

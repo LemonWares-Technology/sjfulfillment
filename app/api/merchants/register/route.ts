@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }, { timeout: 10000 })
 
     // Send verification email
-    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://sjfulfillment.com'}/verify?token=${verificationToken}`
+    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://portal.sjfulfillment.com'}/verify?token=${verificationToken}`
     await sendMerchantVerificationEmail({
       to: email,
       verificationUrl

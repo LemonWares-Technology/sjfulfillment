@@ -105,73 +105,90 @@ export default function ServiceGate({
   // Use null initially to prevent flickering, then set to true/false once we know
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [isChecking, setIsChecking] = useState(true)
+  const [showLoading, setShowLoading] = useState(true)
 
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     const checkServiceAccess = async () => {
       if (!user) {
         setHasAccess(false)
         setIsChecking(false)
-        return
+        return;
       }
-
-      // Instant access for admin
       if (user.role === 'SJFS_ADMIN') {
         setHasAccess(true)
         setIsChecking(false)
-        return
+        return;
       }
-
-      // Instant access for warehouse staff on certain services
       if (user.role === 'WAREHOUSE_STAFF') {
         const warehouseStaffServices = [
           'Order Processing',
           'Inventory Management',
           'Warehouse Management',
           'Stock Management'
-        ]
-        
+        ];
         if (warehouseStaffServices.includes(serviceName)) {
           setHasAccess(true)
           setIsChecking(false)
-          return
+          return;
         }
       }
-
       if (!user.merchantId) {
         setHasAccess(false)
         setIsChecking(false)
-        return
+        return;
       }
-
       try {
-        // Check cache first for instant decision
-        const cached = getCachedSubscriptions(user.merchantId)
+        const cached = getCachedSubscriptions(user.merchantId);
         if (cached) {
-          const hasServiceAccess = cached.some(sub => sub.service.name === serviceName && sub.isActive)
-          setHasAccess(hasServiceAccess)
-          setIsChecking(false)
-          return
+          const hasServiceAccess = cached.some(sub => sub.service.name === serviceName && sub.isActive);
+          setHasAccess(hasServiceAccess);
+          setIsChecking(false);
+          return;
         }
-
-        // Fetch in background and update if user has access
-        const subs = await fetchSubscriptions(get, user.merchantId)
-        const hasServiceAccess = subs.some(sub => sub.service.name === serviceName && sub.isActive)
-        setHasAccess(hasServiceAccess)
-        setIsChecking(false)
+        const subs = await fetchSubscriptions(get, user.merchantId);
+        const hasServiceAccess = subs.some(sub => sub.service.name === serviceName && sub.isActive);
+        setHasAccess(hasServiceAccess);
+        setIsChecking(false);
       } catch (error) {
-        console.error('Failed to check service access:', error)
-        // On error, assume no access but don't block the UI indefinitely
-        setHasAccess(false)
-        setIsChecking(false)
+        console.error('Failed to check service access:', error);
+        setHasAccess(false);
+        setIsChecking(false);
       }
-    }
+    };
+    checkServiceAccess();
+    timer = setTimeout(() => setShowLoading(false), 2000);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, serviceName, get]);
 
-    checkServiceAccess()
-  }, [user, serviceName, get])
-
-  // Show loading state briefly to prevent flickering
-  if (isChecking) {
-    return null // Return nothing while checking to prevent flicker
+  // Show loading modal for 2 seconds, then show button/content
+  if (isChecking || showLoading) {
+    return (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        aria-modal="true"
+        role="dialog"
+      >
+        <div className="bg-white/5 backdrop-blur-lg rounded-xl shadow-2xl p-8 flex flex-col items-center max-w-md w-full border border-amber-400">
+          <div className="mb-6">
+            <svg width="72" height="72" fill="none" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" fill="#f08c17" opacity="0.15" />
+              <path fill="#f08c17" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-amber-500 mb-3 drop-shadow">Checking Service Access...</h2>
+          <p className="text-lg text-white/90 mb-6 text-center">
+            Please wait while we check your subscription status.<br />
+            This screen will disappear automatically when access is determined.
+          </p>
+          <div className="w-full h-2 rounded-full bg-amber-100 mt-6 animate-pulse">
+            <div className="h-2 rounded-full bg-amber-500 w-1/2 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Show content if user has access
